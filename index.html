@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- Makes sure the browser passes our web address along to YouTube, which YouTube now
+     requires for embedded players (avoids the "Error 153" configuration error). -->
+<meta name="referrer" content="strict-origin-when-cross-origin" />
+<title>Focus Session</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+
+<style>
+  /* ---------- Colours ----------
+     Deep navy base; a vibrant lilac / coral / teal / blue / violet / pink palette.
+     The accent colour shifts with the mode: coral while working, teal during breaks. */
+  :root {
+    --bg: #07203E;
+    --surface: rgba(255,255,255,0.07);
+    --surface-line: rgba(255,255,255,0.14);
+    --text: #FFFFFF;
+    --muted: #AEC6D2;
+    --accent: #FA7A66;        /* work accent (coral) */
+    --radius: 16px;
+  }
+  body[data-mode="break"] { --accent: #12E0C2; }   /* break accent (teal) */
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", system-ui, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ---------- Decorative background circles (shared by every screen) ----------
+     Nested pairs: a smaller bright circle sitting in front of a larger one, echoing
+     the layered shapes in the mural. Fixed in place so they stay put while you scroll. */
+  .bg { position: fixed; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+  .blob { position: absolute; border-radius: 50%; }
+  .b1 { width: 240px; height: 240px; background: #FF4FA0; opacity: .9; top: -70px; right: -60px; }
+  .b2 { width: 130px; height: 130px; background: #B79DF0; opacity: .95; top: -10px; right: 40px; }
+  .b3 { width: 260px; height: 260px; background: #12E0C2; opacity: .85; bottom: -110px; left: -70px; }
+  .b4 { width: 140px; height: 140px; background: #9D5CFF; opacity: .9; bottom: -20px; left: 70px; }
+  .b5 { width: 120px; height: 120px; background: #2E9CFF; opacity: .9; top: 60px; left: -40px; }
+  .b6 { width: 110px; height: 110px; background: #FA7A66; opacity: .92; bottom: 80px; right: -34px; }
+
+  /* ---------- Screens ---------- */
+  .screen {
+    position: relative;
+    z-index: 1;
+    display: none;
+    min-height: 100vh;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 22px;
+  }
+  .screen.active { display: flex; }
+  .wrap { width: 100%; max-width: 460px; margin: auto 0; }
+
+  .eyebrow {
+    font-size: 11px; letter-spacing: .16em; font-weight: 600;
+    color: var(--accent); margin: 0 0 10px;
+  }
+  h1 {
+    font-family: "Poppins", sans-serif; font-weight: 600;
+    font-size: clamp(28px, 7vw, 34px); line-height: 1.12; margin: 0 0 26px;
+  }
+
+  /* ---------- Cards & inputs ---------- */
+  .card {
+    background: rgba(7,28,56,0.72);
+    border: 1px solid var(--surface-line);
+    border-radius: 20px;
+    padding: 20px;
+    margin-bottom: 16px;
+    backdrop-filter: blur(2px);
+  }
+  .card-title {
+    font-family: "Poppins", sans-serif; font-weight: 600; font-size: 14px;
+    margin-bottom: 14px;
+  }
+  .round-head {
+    display: flex; align-items: center; gap: 9px;
+    font-family: "Poppins", sans-serif; font-weight: 600; font-size: 15px;
+    margin-bottom: 14px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  label {
+    display: block; font-size: 12px; color: var(--muted);
+    margin: 14px 0 6px;
+  }
+  label:first-child { margin-top: 0; }
+
+  .input, .sel, .custom-min {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--surface-line);
+    border-radius: 12px;
+    color: var(--text);
+    font-family: inherit; font-size: 14px;
+    padding: 12px 13px;
+  }
+  .input::placeholder { color: rgba(174,198,210,0.6); }
+  .input:focus, .sel:focus, .custom-min:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(250,122,102,0.25);
+  }
+  .input:disabled { opacity: .4; }
+
+  .sel { appearance: none; -webkit-appearance: none; cursor: pointer; }
+  .dur { position: relative; }
+  .dur::after {
+    content: "▾"; position: absolute; right: 14px; top: 12px;
+    color: var(--muted); pointer-events: none;
+  }
+  .custom-min { margin-top: 8px; }
+  .hidden { display: none; }
+
+  .check {
+    display: flex; align-items: center; gap: 9px;
+    color: var(--muted); font-size: 13px; cursor: pointer; margin: 14px 0 0;
+  }
+  .check input { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
+
+  /* ---------- Step 1 controls ---------- */
+  .stepper { display: flex; align-items: center; gap: 18px; margin-bottom: 28px; }
+  .step-btn {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 1px solid var(--surface-line); background: transparent;
+    color: var(--text); font-size: 22px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step-btn.plus { background: #FF4FA0; border: none; }
+  .step-count { font-family: "Poppins", sans-serif; font-weight: 700; font-size: 36px; min-width: 40px; text-align: center; }
+
+  .segmented { display: flex; gap: 10px; margin-bottom: 32px; }
+  .seg {
+    flex: 1; text-align: center; padding: 13px; border-radius: 12px;
+    border: 1px solid var(--surface-line); color: var(--muted);
+    font-size: 14px; cursor: pointer;
+  }
+  .seg.on { background: #12E0C2; color: #042A2A; font-weight: 600; border-color: #12E0C2; }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    width: 100%; border: none; border-radius: 14px; padding: 15px;
+    font-family: "Poppins", sans-serif; font-weight: 600; font-size: 15px;
+    cursor: pointer; background: #FF4FA0; color: #fff;
+  }
+  .btn:active { transform: scale(.99); }
+  .btn.ghost { background: transparent; border: 1px solid var(--surface-line); color: var(--muted); }
+  .btn-row { display: flex; gap: 12px; margin-top: 8px; }
+  .btn-row .btn { flex: 1; }
+  .error { color: #FFB3A1; font-size: 13px; margin: 12px 0 0; min-height: 18px; }
+
+  /* ---------- Running screen ---------- */
+  .running-inner { display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .mode-pill {
+    font-size: 12px; letter-spacing: .14em; font-weight: 600; text-transform: none;
+    color: var(--accent); border: 1px solid var(--accent);
+    padding: 6px 15px; border-radius: 999px; margin-bottom: 20px;
+  }
+  .clock {
+    font-family: "Poppins", sans-serif; font-weight: 700;
+    font-size: clamp(64px, 20vw, 120px); line-height: 1;
+    font-variant-numeric: tabular-nums; margin-bottom: 22px;
+  }
+  #player-wrap {
+    width: 100%; max-width: 440px; aspect-ratio: 16/9;
+    border-radius: var(--radius); overflow: hidden; background: #000;
+    border: 1px solid var(--surface-line); margin-bottom: 22px;
+  }
+  #player-wrap.hidden { display: none; }
+  #player { width: 100%; height: 100%; }
+  .rest-panel {
+    width: 100%; max-width: 440px; aspect-ratio: 16/9;
+    border-radius: var(--radius); border: 1px solid var(--surface-line);
+    background: rgba(255,255,255,0.05);
+    display: none; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 15px; margin-bottom: 22px;
+  }
+  .rest-panel.active { display: flex; }
+
+  /* ---------- Countdown overlay (the 5-second transition) ---------- */
+  #countdown {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(4,16,32,0.9); backdrop-filter: blur(4px);
+    display: none; align-items: center; justify-content: center;
+  }
+  #countdown.active { display: flex; }
+  .count-stage { position: relative; width: 240px; height: 240px; }
+  #countRing { transform: rotate(-90deg); transform-origin: center; transition: stroke-dashoffset 1s linear; }
+  .count-num {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-family: "Poppins", sans-serif; font-weight: 700; font-size: 110px; color: #fff;
+  }
+  .count-num.pop { animation: pop .55s ease; }
+  @keyframes pop { 0%{transform:scale(.75);opacity:.4} 45%{transform:scale(1.07);opacity:1} 100%{transform:scale(1)} }
+  .count-label {
+    position: absolute; bottom: -46px; left: 0; right: 0; text-align: center;
+    color: var(--muted); font-size: 12px; letter-spacing: .14em;
+  }
+
+  .check-circle {
+    width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--accent);
+    color: var(--accent); font-size: 30px;
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .count-num.pop { animation: none; }
+    #countRing { transition: none; }
+  }
+</style>
+</head>
+<body data-mode="work">
+
+  <div class="bg">
+    <div class="blob b1"></div><div class="blob b2"></div>
+    <div class="blob b3"></div><div class="blob b4"></div>
+    <div class="blob b5"></div><div class="blob b6"></div>
+  </div>
+
+  <!-- ============ STEP 1 ============ -->
+  <section id="step1" class="screen active">
+    <div class="wrap">
+      <p class="eyebrow">Step 1 of 2</p>
+      <h1>Start a session.</h1>
+
+      <div class="card">
+        <label>How many rounds?</label>
+        <div class="stepper">
+          <button class="step-btn" id="roundsMinus">−</button>
+          <div class="step-count" id="roundsCount">4</div>
+          <button class="step-btn plus" id="roundsPlus">+</button>
+        </div>
+
+        <label>Same timings for every round?</label>
+        <div class="segmented">
+          <div class="seg on" id="segYes">Yes</div>
+          <div class="seg" id="segNo">No</div>
+        </div>
+
+        <button class="btn" id="toStep2">Next</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ STEP 2 ============ -->
+  <section id="step2" class="screen">
+    <div class="wrap">
+      <p class="eyebrow">Step 2 of 2</p>
+      <h1>Times &amp; playlists.</h1>
+      <div id="step2Body"></div>
+      <div class="error" id="step2Error"></div>
+      <div class="btn-row">
+        <button class="btn ghost" id="backTo1">Back</button>
+        <button class="btn" id="startSession">Start session</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RUNNING ============ -->
+  <section id="running" class="screen">
+    <div class="wrap running-inner">
+      <div class="mode-pill" id="modePill">Round 1 of 4 · Work</div>
+      <div class="clock" id="clock">25:00</div>
+      <div id="player-wrap"><div id="player"></div></div>
+      <div class="rest-panel" id="restPanel">Rest. The next round starts on its own.</div>
+      <button class="btn ghost" id="endBtn" style="max-width:200px;">End session</button>
+    </div>
+  </section>
+
+  <!-- ============ COMPLETE ============ -->
+  <section id="complete" class="screen">
+    <div class="wrap" style="text-align:center;">
+      <div class="check-circle">✓</div>
+      <h1>Session complete.</h1>
+      <p style="color:var(--muted);margin-bottom:24px;">All rounds done. Nicely held.</p>
+      <button class="btn" id="againBtn">Set up another</button>
+    </div>
+  </section>
+
+  <!-- ============ COUNTDOWN OVERLAY ============ -->
+  <div id="countdown">
+    <div class="count-stage">
+      <svg viewBox="0 0 240 240" width="240" height="240">
+        <circle cx="120" cy="120" r="104" fill="#FF4FA0" opacity="0.9"></circle>
+        <circle cx="120" cy="120" r="82" fill="#9D5CFF" opacity="0.92"></circle>
+        <circle cx="120" cy="120" r="60" fill="#2E9CFF" opacity="0.94"></circle>
+        <circle cx="120" cy="120" r="40" fill="#12E0C2" opacity="0.96"></circle>
+        <circle cx="120" cy="120" r="22" fill="#FA7A66"></circle>
+        <circle id="countRing" cx="120" cy="120" r="114" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round"></circle>
+      </svg>
+      <div class="count-num" id="countNum">5</div>
+      <div class="count-label" id="countLabel">Up next: break</div>
+    </div>
+  </div>
+
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script>
+  // =====================================================================
+  //  STATE
+  // =====================================================================
+  const state = {
+    numRounds: 4,
+    sameTimings: true,
+    sharedWork: 1500,   // seconds (25 min) — used when timings are shared
+    sharedBreak: 300,   // seconds (5 min)
+    rounds: [],         // filled in when the session starts
+  };
+
+  let player = null, apiReady = false, playerReady = false;
+  let audioCtx = null, session = null, videoEnded = false;
+
+  const RING_R = 114;
+  const RING_LEN = 2 * Math.PI * RING_R;
+  const DOT_COLOURS = ['#FF4FA0','#B79DF0','#9D5CFF','#2E9CFF','#12E0C2','#FA7A66'];
+
+  function onYouTubeIframeAPIReady() { apiReady = true; }
+
+  // =====================================================================
+  //  STEP 1 CONTROLS
+  // =====================================================================
+  const roundsCount = document.getElementById('roundsCount');
+  document.getElementById('roundsMinus').addEventListener('click', () => {
+    if (state.numRounds > 1) { state.numRounds--; roundsCount.textContent = state.numRounds; }
+  });
+  document.getElementById('roundsPlus').addEventListener('click', () => {
+    if (state.numRounds < 10) { state.numRounds++; roundsCount.textContent = state.numRounds; }
+  });
+
+  const segYes = document.getElementById('segYes'), segNo = document.getElementById('segNo');
+  segYes.addEventListener('click', () => { state.sameTimings = true; segYes.classList.add('on'); segNo.classList.remove('on'); });
+  segNo.addEventListener('click', () => { state.sameTimings = false; segNo.classList.add('on'); segYes.classList.remove('on'); });
+
+  document.getElementById('toStep2').addEventListener('click', () => { buildStep2(); showScreen('step2'); });
+  document.getElementById('backTo1').addEventListener('click', () => showScreen('step1'));
+
+  // =====================================================================
+  //  STEP 2 — built to match the number of rounds and the timing choice
+  // =====================================================================
+
+  // A reusable duration picker: preset minutes, plus "Match video length" and "Custom".
+  function durationControl(prefix, defaultSecs) {
+    let opts = '';
+    [5,10,15,20,25,30,35,40,45,50,55,60].forEach(m => {
+      const s = m * 60;
+      opts += `<option value="${s}" ${s === defaultSecs ? 'selected' : ''}>${m} min</option>`;
+    });
+    opts += `<option value="match">Match video length</option>`;
+    opts += `<option value="custom">Custom…</option>`;
+    return `<div class="dur"><select class="sel" id="${prefix}-sel">${opts}</select></div>
+            <input type="number" class="custom-min hidden" id="${prefix}-custom" min="1" max="240" placeholder="minutes">`;
+  }
+
+  function buildStep2() {
+    const n = state.numRounds;
+    let html = '';
+
+    if (state.sameTimings) {
+      html += `<div class="card">
+        <div class="card-title">Timings · all ${n} round${n > 1 ? 's' : ''}</div>
+        <label>Work length</label>${durationControl('sharedWork', 1500)}
+        <label>Break length</label>${durationControl('sharedBreak', 300)}
+      </div>`;
+    }
+
+    for (let r = 0; r < n; r++) {
+      const colour = DOT_COLOURS[r % DOT_COLOURS.length];
+      html += `<div class="card">
+        <div class="round-head"><span class="dot" style="background:${colour}"></span>Round ${r + 1}</div>
+        ${!state.sameTimings ? `<label>Work length</label>${durationControl('workDur-' + r, 1500)}
+                                <label>Break length</label>${durationControl('breakDur-' + r, 300)}` : ''}
+        <label>Work playlist link</label>
+        <input class="input" id="workLink-${r}" placeholder="YouTube playlist or video link…">
+        <label class="check"><input type="checkbox" class="nothing" id="breakNothing-${r}" data-r="${r}"> Play nothing during this break</label>
+        <label>Break playlist link</label>
+        <input class="input" id="breakLink-${r}" placeholder="YouTube playlist or video link…">
+      </div>`;
+    }
+    document.getElementById('step2Body').innerHTML = html;
+    document.getElementById('step2Error').textContent = '';
+  }
+
+  // Show the custom-minutes box when "Custom…" is chosen; react to the "nothing" checkbox.
+  document.getElementById('step2Body').addEventListener('change', (e) => {
+    if (e.target.classList.contains('sel')) {
+      const custom = document.getElementById(e.target.id.replace('-sel', '-custom'));
+      if (custom) custom.classList.toggle('hidden', e.target.value !== 'custom');
+    }
+    if (e.target.classList.contains('nothing')) {
+      const r = e.target.dataset.r;
+      const link = document.getElementById('breakLink-' + r);
+      link.disabled = e.target.checked;
+      if (e.target.checked) link.value = '';
+      // If this round has its own break-duration picker, switch "match" off (no video to match).
+      const sel = document.getElementById('breakDur-' + r + '-sel');
+      if (sel) {
+        const matchOpt = sel.querySelector('option[value="match"]');
+        if (matchOpt) matchOpt.disabled = e.target.checked;
+        if (e.target.checked && sel.value === 'match') sel.value = '300';
+      }
+    }
+  });
+
+  // =====================================================================
+  //  READING WHAT WAS TYPED
+  // =====================================================================
+  function parseYouTube(raw) {
+    if (!raw) return null;
+    const text = raw.trim();
+    if (!text.includes('http') && /^[A-Za-z0-9_-]{11,}$/.test(text)) return { type: 'playlist', id: text };
+    try {
+      const url = new URL(text);
+      const list = url.searchParams.get('list');
+      if (list) return { type: 'playlist', id: list };
+      let v = url.searchParams.get('v');
+      if (!v && url.hostname.includes('youtu.be')) v = url.pathname.slice(1);
+      if (v) return { type: 'video', id: v };
+    } catch (e) { return null; }
+    return null;
+  }
+
+  // Read a duration picker → seconds, or the string 'match', or null if invalid.
+  function readDuration(prefix) {
+    const sel = document.getElementById(prefix + '-sel');
+    if (!sel) return null;
+    if (sel.value === 'match') return 'match';
+    if (sel.value === 'custom') {
+      const m = parseInt(document.getElementById(prefix + '-custom').value, 10);
+      return (!m || m < 1) ? null : m * 60;
+    }
+    return parseInt(sel.value, 10);
+  }
+
+  function readStep2() {
+    const err = document.getElementById('step2Error');
+    err.textContent = '';
+    const rounds = [];
+
+    if (state.sameTimings) {
+      const w = readDuration('sharedWork'), b = readDuration('sharedBreak');
+      if (w === null || b === null) { err.textContent = 'Please enter a valid custom length (in minutes).'; return false; }
+      state.sharedWork = w; state.sharedBreak = b;
+    }
+
+    for (let r = 0; r < state.numRounds; r++) {
+      const work = parseYouTube(document.getElementById('workLink-' + r).value);
+      if (!work) { err.textContent = `Round ${r + 1}: add a YouTube link for the work part.`; return false; }
+
+      const nothing = document.getElementById('breakNothing-' + r).checked;
+      let brk = null;
+      if (!nothing) {
+        brk = parseYouTube(document.getElementById('breakLink-' + r).value);
+        if (!brk) { err.textContent = `Round ${r + 1}: add a break link, or tick "Play nothing".`; return false; }
+      }
+
+      let workDur, breakDur;
+      if (state.sameTimings) { workDur = state.sharedWork; breakDur = state.sharedBreak; }
+      else {
+        workDur = readDuration('workDur-' + r);
+        breakDur = readDuration('breakDur-' + r);
+        if (workDur === null || breakDur === null) { err.textContent = `Round ${r + 1}: enter a valid custom length.`; return false; }
+      }
+
+      rounds.push({ workContent: work, breakContent: brk, breakNothing: nothing, workDur, breakDur });
+    }
+    state.rounds = rounds;
+    return true;
+  }
+
+  // =====================================================================
+  //  THE PLAYER
+  // =====================================================================
+  function createPlayer() {
+    return new Promise((resolve) => {
+      if (playerReady) { resolve(); return; }
+      player = new YT.Player('player', {
+        width: '100%', height: '100%',
+        playerVars: { playsinline: 1, rel: 0 },
+        events: {
+          onReady: () => { playerReady = true; resolve(); },
+          onStateChange: (e) => { if (e.data === YT.PlayerState.ENDED) videoEnded = true; },
+        },
+      });
+    });
+  }
+
+  function loadContent(content) {
+    if (!player || !content) return;
+    videoEnded = false;
+    player.setVolume(100);
+    if (content.type === 'playlist') player.loadPlaylist({ listType: 'playlist', list: content.id });
+    else player.loadVideoById(content.id);
+  }
+  function stopPlayer() { if (player && playerReady) { try { player.stopVideo(); } catch (e) {} } }
+
+  // =====================================================================
+  //  BEEPS
+  // =====================================================================
+  function beep(freq, durMs) {
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.frequency.value = freq; osc.type = 'sine';
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    const t = audioCtx.currentTime;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.35, t + 0.02);
+    gain.gain.linearRampToValueAtTime(0, t + durMs / 1000);
+    osc.start(t); osc.stop(t + durMs / 1000 + 0.02);
+  }
+  const countBeep = () => beep(880, 160);
+  const goBeep = () => beep(1280, 320);
+
+  // =====================================================================
+  //  SCREENS & DISPLAY
+  // =====================================================================
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    window.scrollTo(0, 0);
+  }
+  function setMode(kind) { document.body.setAttribute('data-mode', kind); }
+  function formatTime(secs) {
+    const m = Math.floor(secs / 60), s = secs % 60;
+    return m + ':' + String(s).padStart(2, '0');
+  }
+  function updateClock(secs) { document.getElementById('clock').textContent = formatTime(Math.max(0, secs)); }
+
+  // =====================================================================
+  //  TIMERS
+  // =====================================================================
+
+  // Fixed-length phase: counts down a set number of seconds.
+  function runTimer(totalSecs) {
+    return new Promise((resolve) => {
+      const endAt = Date.now() + totalSecs * 1000;
+      updateClock(totalSecs);
+      const t = setInterval(() => {
+        if (session.cancelled) { clearInterval(t); resolve(); return; }
+        const left = Math.round((endAt - Date.now()) / 1000);
+        updateClock(left);
+        if (Date.now() >= endAt) { clearInterval(t); resolve(); }
+      }, 250);
+    });
+  }
+
+  // "Match video length" phase: runs until the single video finishes.
+  function runMatchVideo() {
+    return new Promise((resolve) => {
+      const t = setInterval(() => {
+        if (session.cancelled || videoEnded) { clearInterval(t); resolve(); return; }
+        try {
+          const dur = player.getDuration(), cur = player.getCurrentTime();
+          if (dur > 0) updateClock(Math.ceil(dur - cur));
+        } catch (e) {}
+      }, 250);
+    });
+  }
+
+  // The 5-second transition: nested rings, a pulsing number, and a beep each second.
+  function runCountdown(nextLabel) {
+    return new Promise((resolve) => {
+      const overlay = document.getElementById('countdown');
+      const numEl = document.getElementById('countNum');
+      const ring = document.getElementById('countRing');
+      document.getElementById('countLabel').textContent = 'Up next: ' + nextLabel;
+
+      ring.style.strokeDasharray = RING_LEN;
+      ring.style.transition = 'none';
+      ring.style.strokeDashoffset = '0';
+      if (player && playerReady) { try { player.setVolume(12); } catch (e) {} }  // dip the music
+      overlay.classList.add('active');
+
+      const show = (v) => { numEl.textContent = v; numEl.classList.remove('pop'); void numEl.offsetWidth; numEl.classList.add('pop'); };
+      let n = 5;
+      show(n); countBeep();
+      requestAnimationFrame(() => { ring.style.transition = 'stroke-dashoffset 5s linear'; ring.style.strokeDashoffset = RING_LEN; });
+
+      const t = setInterval(() => {
+        if (session.cancelled) { clearInterval(t); overlay.classList.remove('active'); resolve(); return; }
+        n--;
+        if (n >= 1) { show(n); countBeep(); }
+        else { clearInterval(t); goBeep(); overlay.classList.remove('active'); resolve(); }
+      }, 1000);
+    });
+  }
+
+  // =====================================================================
+  //  THE FULL RUN
+  // =====================================================================
+
+  // Turn the rounds into a flat list of phases to play one after another.
+  function buildPhases() {
+    const phases = [];
+    for (let r = 0; r < state.numRounds; r++) {
+      const rd = state.rounds[r];
+      phases.push({ kind: 'work', round: r, dur: rd.workDur, content: rd.workContent, nothing: false });
+      // A "nothing" break can't match a video, so fall back to skipping it in that rare combo.
+      let bdur = rd.breakNothing && rd.breakDur === 'match' ? 0 : rd.breakDur;
+      phases.push({ kind: 'break', round: r, dur: bdur, content: rd.breakNothing ? null : rd.breakContent, nothing: rd.breakNothing });
+    }
+    return phases;
+  }
+
+  function phaseLabel(p) {
+    if (p.kind === 'work') return 'focus time';
+    return p.nothing ? 'quiet break' : 'break';
+  }
+
+  async function runPhase(p) {
+    setMode(p.kind);
+    document.getElementById('modePill').textContent =
+      `Round ${p.round + 1} of ${state.numRounds} · ${p.kind === 'work' ? 'Work' : 'Break'}`;
+
+    const wrap = document.getElementById('player-wrap'), rest = document.getElementById('restPanel');
+    if (p.kind === 'break' && p.nothing) {
+      stopPlayer(); wrap.classList.add('hidden'); rest.classList.add('active');
+    } else {
+      wrap.classList.remove('hidden'); rest.classList.remove('active');
+      loadContent(p.content);
+    }
+
+    if (p.dur === 'match') await runMatchVideo();
+    else if (p.dur > 0) await runTimer(p.dur);
+    // (dur of 0 = skip straight through)
+  }
+
+  async function runSession() {
+    session = { cancelled: false };
+    const phases = buildPhases();
+    showScreen('running');
+
+    for (let i = 0; i < phases.length; i++) {
+      // Countdown before every phase — now including the first work phase, so you get
+      // a 5-second run-in right after pressing Start, before the first video plays.
+      await runCountdown(phaseLabel(phases[i]));
+      if (session.cancelled) return;
+      await runPhase(phases[i]);
+      if (session.cancelled) return;
+    }
+    await runCountdown('all done');
+    if (session.cancelled) return;
+    stopPlayer();
+    showScreen('complete');
+  }
+
+  // =====================================================================
+  //  START / END
+  // =====================================================================
+  document.getElementById('startSession').addEventListener('click', async () => {
+    if (!readStep2()) return;
+
+    // First tap unlocks sound and builds the player.
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    if (!apiReady) { document.getElementById('step2Error').textContent = 'Still loading the player — tap Start again in a second.'; return; }
+    await createPlayer();
+    runSession();
+  });
+
+  document.getElementById('endBtn').addEventListener('click', () => {
+    if (session) session.cancelled = true;
+    document.getElementById('countdown').classList.remove('active');
+    stopPlayer(); setMode('work'); showScreen('step1');
+  });
+
+  document.getElementById('againBtn').addEventListener('click', () => { setMode('work'); showScreen('step1'); });
+  </script>
+</body>
+</html>
