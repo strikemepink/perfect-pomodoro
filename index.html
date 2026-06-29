@@ -6,7 +6,7 @@
 <!-- Makes sure the browser passes our web address along to YouTube, which YouTube now
      requires for embedded players (avoids the "Error 153" configuration error). -->
 <meta name="referrer" content="strict-origin-when-cross-origin" />
-<title>Focus Session</title>
+<title>Perfect Pomodoro</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -64,6 +64,32 @@
   .screen.active { display: flex; }
   .wrap { width: 100%; max-width: 460px; margin: auto 0; }
 
+  /* The app's name, shown at the top of the first screen. */
+  .wordmark {
+    font-family: "Poppins", sans-serif; font-weight: 700;
+    font-size: 18px; letter-spacing: .01em; margin: 0 0 30px;
+  }
+  .wordmark .accent { color: var(--accent); }   /* "Pomodoro" picks up the coral accent */
+
+  /* ---------- Routine cards (the four choices on Step 1) ----------
+     Each is a full-width tappable card: a bold name on top, a plain-English
+     detail line below. Built as <button>s so they work with keyboard + tap. */
+  .routine {
+    display: block; width: 100%; text-align: left;
+    background: rgba(7,28,56,0.72);
+    border: 1px solid var(--surface-line);
+    border-radius: 20px; padding: 17px 20px; margin-bottom: 12px;
+    color: var(--text); font-family: inherit; cursor: pointer;
+    transition: border-color .15s ease;
+  }
+  .routine:hover, .routine:focus-visible { border-color: var(--accent); outline: none; }
+  .routine:active { transform: scale(.99); }
+  .routine-name {
+    display: block; font-family: "Poppins", sans-serif; font-weight: 600;
+    font-size: 16px; margin-bottom: 4px;
+  }
+  .routine-detail { display: block; font-size: 13px; color: var(--muted); line-height: 1.4; }
+
   .eyebrow {
     font-size: 11px; letter-spacing: .16em; font-weight: 600;
     color: var(--accent); margin: 0 0 10px;
@@ -92,6 +118,11 @@
     margin-bottom: 14px;
   }
   .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* Plain, non-editable timing line shown for ready-made routines on Step 2. */
+  .timing-readonly {
+    margin: -4px 0 14px; font-size: 14px; color: var(--muted);
+  }
 
   label {
     display: block; font-size: 12px; color: var(--muted);
@@ -215,6 +246,56 @@
     display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;
   }
 
+  /* ---------- Video library: the "Browse" button + the picker panel ---------- */
+  .browse-btn {
+    margin-top: 8px; padding: 9px 14px; font-size: 13px;
+    background: transparent; border: 1px solid var(--surface-line);
+    border-radius: 10px; color: var(--accent); cursor: pointer; font-family: inherit;
+  }
+  .browse-btn:hover, .browse-btn:focus-visible { border-color: var(--accent); outline: none; }
+  .browse-btn:disabled { opacity: .4; cursor: default; }
+
+  #libraryPanel {
+    position: fixed; inset: 0; z-index: 60;
+    background: rgba(4,16,32,0.92); backdrop-filter: blur(4px);
+    display: none; justify-content: center; overflow-y: auto; padding: 24px 18px;
+  }
+  #libraryPanel.active { display: flex; align-items: flex-start; }
+  .lib-sheet { width: 100%; max-width: 520px; }
+  .lib-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .lib-head h2 { font-family: "Poppins", sans-serif; font-weight: 600; font-size: 18px; margin: 0; }
+  .lib-close {
+    background: transparent; border: 1px solid var(--surface-line); color: var(--muted);
+    border-radius: 10px; padding: 8px 14px; cursor: pointer; font-family: inherit; font-size: 14px;
+  }
+  .lib-close:hover, .lib-close:focus-visible { border-color: var(--accent); color: var(--text); outline: none; }
+  .lib-controls { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+  .lib-selects { display: flex; gap: 10px; }
+  .lib-selects .dur { flex: 1; }
+  .lib-list { display: flex; flex-direction: column; gap: 12px; }
+  .lib-row {
+    display: flex; flex-direction: column;
+    background: rgba(7,28,56,0.72); border: 1px solid var(--surface-line);
+    border-radius: 16px; padding: 14px 16px;
+  }
+  .lib-title { font-family: "Poppins", sans-serif; font-weight: 600; font-size: 15px; line-height: 1.3; margin-bottom: 4px; }
+  .lib-cat { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .lib-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
+  .lib-tag {
+    background: rgba(183,157,240,0.14); border: 1px solid rgba(183,157,240,0.4);
+    color: #C9B8F4; border-radius: 999px; padding: 4px 11px; font-size: 12px;
+    cursor: pointer; font-family: inherit;
+  }
+  .lib-tag:hover, .lib-tag:focus-visible { border-color: var(--accent); outline: none; }
+  .lib-use {
+    align-self: flex-start;
+    background: var(--accent); color: #fff; border: none; border-radius: 10px;
+    padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+    font-family: "Poppins", sans-serif;
+  }
+  .lib-use:active { transform: scale(.99); }
+  .lib-empty { color: var(--muted); font-size: 14px; text-align: center; padding: 30px 0; }
+
   @media (prefers-reduced-motion: reduce) {
     .count-num.pop { animation: none; }
     #countRing { transition: none; }
@@ -232,24 +313,48 @@
   <!-- ============ STEP 1 ============ -->
   <section id="step1" class="screen active">
     <div class="wrap">
+      <p class="wordmark">Perfect <span class="accent">Pomodoro</span></p>
       <p class="eyebrow">Step 1 of 2</p>
-      <h1>Start a session.</h1>
+      <h1>Choose a routine.</h1>
 
-      <div class="card">
-        <label>How many rounds?</label>
-        <div class="stepper">
-          <button class="step-btn" id="roundsMinus">−</button>
-          <div class="step-count" id="roundsCount">4</div>
-          <button class="step-btn plus" id="roundsPlus">+</button>
+      <button class="routine" data-preset="movement">
+        <span class="routine-name">Movement</span>
+        <span class="routine-detail">4 rounds · 25 min work / 5 min breaks, with a longer 20 min break at the end</span>
+      </button>
+
+      <button class="routine" data-preset="desktime">
+        <span class="routine-name">DeskTime</span>
+        <span class="routine-detail">2 rounds · 52 min work / 17 min break</span>
+      </button>
+
+      <button class="routine" data-preset="ultradian">
+        <span class="routine-name">Ultradian</span>
+        <span class="routine-detail">2 rounds · 90 min work / 20 min break</span>
+      </button>
+
+      <button class="routine" id="routineCustom" data-preset="custom">
+        <span class="routine-name">Build your own</span>
+        <span class="routine-detail">Pick your own rounds and timings</span>
+      </button>
+
+      <!-- Hidden until "Build your own" is tapped — these are the original Step 1 controls. -->
+      <div id="buildYourOwn" class="hidden">
+        <div class="card" style="margin-top:4px;">
+          <label>How many rounds?</label>
+          <div class="stepper">
+            <button class="step-btn" id="roundsMinus">−</button>
+            <div class="step-count" id="roundsCount">4</div>
+            <button class="step-btn plus" id="roundsPlus">+</button>
+          </div>
+
+          <label>Same timings for every round?</label>
+          <div class="segmented">
+            <div class="seg on" id="segYes">Yes</div>
+            <div class="seg" id="segNo">No</div>
+          </div>
+
+          <button class="btn" id="toStep2">Next</button>
         </div>
-
-        <label>Same timings for every round?</label>
-        <div class="segmented">
-          <div class="seg on" id="segYes">Yes</div>
-          <div class="seg" id="segNo">No</div>
-        </div>
-
-        <button class="btn" id="toStep2">Next</button>
       </div>
     </div>
   </section>
@@ -305,6 +410,28 @@
     </div>
   </div>
 
+  <!-- ============ VIDEO LIBRARY PICKER ============ -->
+  <div id="libraryPanel">
+    <div class="lib-sheet">
+      <div class="lib-head">
+        <h2>Video library</h2>
+        <button type="button" class="lib-close" id="libClose">Close</button>
+      </div>
+      <div class="lib-controls">
+        <input type="text" class="input" id="libSearch" placeholder="Search by title or tag — e.g. lofi, arms, no words…">
+        <div class="lib-selects">
+          <div class="dur"><select class="sel" id="libCategory"></select></div>
+          <div class="dur"><select class="sel" id="libBestFor">
+            <option value="all">Any time</option>
+            <option value="work">For work</option>
+            <option value="break">For break</option>
+          </select></div>
+        </div>
+      </div>
+      <div class="lib-list" id="libList"></div>
+    </div>
+  </div>
+
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
   // =====================================================================
@@ -316,10 +443,15 @@
     sharedWork: 1500,   // seconds (25 min) — used when timings are shared
     sharedBreak: 300,   // seconds (5 min)
     rounds: [],         // filled in when the session starts
+    roundTimings: null, // per-round lengths when a routine sets them (e.g. Movement); null otherwise
+    lockedTimings: false, // true when a ready-made routine fixed the lengths (no pickers shown)
   };
 
   let player = null, apiReady = false, playerReady = false;
   let audioCtx = null, session = null, videoEnded = false;
+  // Remembers how far each single video has played, by its video id, so a video reused
+  // later in the same session can carry on instead of restarting. Cleared each new session.
+  let resumeAt = {};
 
   const RING_R = 114;
   const RING_LEN = 2 * Math.PI * RING_R;
@@ -346,45 +478,150 @@
   document.getElementById('backTo1').addEventListener('click', () => showScreen('step1'));
 
   // =====================================================================
+  //  ROUTINES — the four cards on Step 1
+  // =====================================================================
+  // Each ready-made routine sets the number of rounds and the work/break lengths.
+  // Same-timings routines (DeskTime, Ultradian) use one shared work/break length.
+  // Movement varies by round, so it lists each round's lengths (longer last break).
+  const PRESETS = {
+    movement: {
+      numRounds: 4,
+      sameTimings: false,
+      roundTimings: [
+        { workDur: 1500, breakDur: 300 },   // Round 1 — 25 min work / 5 min break
+        { workDur: 1500, breakDur: 300 },   // Round 2 — 25 / 5
+        { workDur: 1500, breakDur: 300 },   // Round 3 — 25 / 5
+        { workDur: 1500, breakDur: 1200 },  // Round 4 — 25 / 20 (longer wind-down)
+      ],
+    },
+    desktime:  { numRounds: 2, sameTimings: true, sharedWork: 3120, sharedBreak: 1020 }, // 52 / 17
+    ultradian: { numRounds: 2, sameTimings: true, sharedWork: 5400, sharedBreak: 1200 }, // 90 / 20
+  };
+
+  // Apply a timed routine, then jump straight to Step 2 with everything pre-filled.
+  function applyPreset(key) {
+    const p = PRESETS[key];
+    state.numRounds = p.numRounds;
+    state.sameTimings = p.sameTimings;
+    state.lockedTimings = true;   // routine fixes the lengths — Step 2 shows them as plain text
+    if (p.sameTimings) {
+      state.sharedWork = p.sharedWork;
+      state.sharedBreak = p.sharedBreak;
+      state.roundTimings = null;
+    } else {
+      state.roundTimings = p.roundTimings;
+    }
+    buildStep2();
+    showScreen('step2');
+  }
+
+  // "Build your own": reveal the original controls, reset to a clean 4 rounds / 25 / 5 start.
+  function revealBuildYourOwn() {
+    state.numRounds = 4;
+    state.sameTimings = true;
+    state.sharedWork = 1500;
+    state.sharedBreak = 300;
+    state.roundTimings = null;
+    state.lockedTimings = false;   // Build your own keeps the editable length pickers
+    roundsCount.textContent = state.numRounds;
+    segYes.classList.add('on'); segNo.classList.remove('on');
+    document.getElementById('buildYourOwn').classList.remove('hidden');
+    document.getElementById('buildYourOwn').scrollIntoView({ block: 'nearest' });
+  }
+
+  // Wire up all four cards.
+  document.querySelectorAll('.routine').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.preset;
+      if (key === 'custom') revealBuildYourOwn();
+      else applyPreset(key);
+    });
+  });
+
+  // =====================================================================
   //  STEP 2 — built to match the number of rounds and the timing choice
   // =====================================================================
 
   // A reusable duration picker: preset minutes, plus "Match video length" and "Custom".
   function durationControl(prefix, defaultSecs) {
+    const presetMins = [5,10,15,20,25,30,35,40,45,50,55,60];
+    const defaultMins = Math.round(defaultSecs / 60);
+    // Does the wanted length match a dropdown preset? If not, we show "Custom…" pre-filled.
+    const matchesPreset = presetMins.includes(defaultMins);
+
     let opts = '';
-    [5,10,15,20,25,30,35,40,45,50,55,60].forEach(m => {
+    presetMins.forEach(m => {
       const s = m * 60;
-      opts += `<option value="${s}" ${s === defaultSecs ? 'selected' : ''}>${m} min</option>`;
+      opts += `<option value="${s}" ${matchesPreset && s === defaultSecs ? 'selected' : ''}>${m} min</option>`;
     });
     opts += `<option value="match">Match video length</option>`;
-    opts += `<option value="custom">Custom…</option>`;
+    opts += `<option value="custom" ${matchesPreset ? '' : 'selected'}>Custom…</option>`;
+
+    // For non-preset lengths (e.g. DeskTime 52/17, Ultradian 90) pre-fill and show the minutes box.
+    const customValue = matchesPreset ? '' : defaultMins;
+    const customClass = matchesPreset ? 'custom-min hidden' : 'custom-min';
     return `<div class="dur"><select class="sel" id="${prefix}-sel">${opts}</select></div>
-            <input type="number" class="custom-min hidden" id="${prefix}-custom" min="1" max="240" placeholder="minutes">`;
+            <input type="number" class="${customClass}" id="${prefix}-custom" min="1" max="240" value="${customValue}" placeholder="minutes">`;
   }
 
   function buildStep2() {
     const n = state.numRounds;
+    const mins = secs => Math.round(secs / 60) + ' min';   // seconds → "52 min"
     let html = '';
 
+    // Shared-timings card at the top (used when every round has the same lengths).
     if (state.sameTimings) {
+      const timingHtml = state.lockedTimings
+        ? `<p class="timing-readonly">Work ${mins(state.sharedWork)} · Break ${mins(state.sharedBreak)}</p>`
+        : `<label>Work length</label>${durationControl('sharedWork', state.sharedWork)}
+           <label>Break length</label>${durationControl('sharedBreak', state.sharedBreak)}`;
       html += `<div class="card">
         <div class="card-title">Timings · all ${n} round${n > 1 ? 's' : ''}</div>
-        <label>Work length</label>${durationControl('sharedWork', 1500)}
-        <label>Break length</label>${durationControl('sharedBreak', 300)}
+        ${timingHtml}
       </div>`;
     }
 
     for (let r = 0; r < n; r++) {
       const colour = DOT_COLOURS[r % DOT_COLOURS.length];
+      // Pre-fill per-round lengths from a chosen routine if there is one; otherwise the usual 25/5.
+      const workDefault = state.roundTimings ? state.roundTimings[r].workDur : 1500;
+      const breakDefault = state.roundTimings ? state.roundTimings[r].breakDur : 300;
+
+      // Per-round timings only appear when rounds differ. A locked routine shows them as
+      // plain text; Build your own shows the editable pickers.
+      let timingBlock = '';
+      if (!state.sameTimings) {
+        timingBlock = state.lockedTimings
+          ? `<p class="timing-readonly">${mins(workDefault)} work · ${mins(breakDefault)} break</p>`
+          : `<label>Work length</label>${durationControl('workDur-' + r, workDefault)}
+             <label>Break length</label>${durationControl('breakDur-' + r, breakDefault)}`;
+      }
+
+      // From round 2 onward, offer to continue the previous round's video (work and break
+      // are independent — work only continues work, break only continues break).
+      const continueWork = r >= 1
+        ? `<label class="check"><input type="checkbox" class="continue-work" id="continueWork-${r}" data-r="${r}"> Continue the work video from the previous round</label>`
+        : '';
+      const continueBreak = r >= 1
+        ? `<label class="check"><input type="checkbox" class="continue-break" id="continueBreak-${r}" data-r="${r}"> Continue the break video from the previous round</label>`
+        : '';
+
       html += `<div class="card">
         <div class="round-head"><span class="dot" style="background:${colour}"></span>Round ${r + 1}</div>
-        ${!state.sameTimings ? `<label>Work length</label>${durationControl('workDur-' + r, 1500)}
-                                <label>Break length</label>${durationControl('breakDur-' + r, 300)}` : ''}
-        <label>Work playlist link</label>
-        <input class="input" id="workLink-${r}" placeholder="YouTube playlist or video link…">
+        ${timingBlock}
+        ${continueWork}
+        <div id="workEntry-${r}">
+          <label>Work playlist link</label>
+          <input class="input" id="workLink-${r}" placeholder="YouTube playlist or video link…">
+          <button type="button" class="browse-btn" data-target="workLink-${r}">＋ Browse library</button>
+        </div>
+        ${continueBreak}
         <label class="check"><input type="checkbox" class="nothing" id="breakNothing-${r}" data-r="${r}"> Play nothing during this break</label>
-        <label>Break playlist link</label>
-        <input class="input" id="breakLink-${r}" placeholder="YouTube playlist or video link…">
+        <div id="breakEntry-${r}">
+          <label>Break playlist link</label>
+          <input class="input" id="breakLink-${r}" placeholder="YouTube playlist or video link…">
+          <button type="button" class="browse-btn" id="browseBreak-${r}" data-target="breakLink-${r}">＋ Browse library</button>
+        </div>
       </div>`;
     }
     document.getElementById('step2Body').innerHTML = html;
@@ -397,11 +634,32 @@
       const custom = document.getElementById(e.target.id.replace('-sel', '-custom'));
       if (custom) custom.classList.toggle('hidden', e.target.value !== 'custom');
     }
+    if (e.target.classList.contains('continue-work')) {
+      const r = e.target.dataset.r;
+      const entry = document.getElementById('workEntry-' + r);
+      if (entry) entry.classList.toggle('hidden', e.target.checked);   // no link needed when continuing
+    }
+    if (e.target.classList.contains('continue-break')) {
+      const r = e.target.dataset.r;
+      const entry = document.getElementById('breakEntry-' + r);
+      if (entry) entry.classList.toggle('hidden', e.target.checked);
+      // "Continue break" and "Play nothing" can't both be on.
+      const nothing = document.getElementById('breakNothing-' + r);
+      if (nothing) { if (e.target.checked) nothing.checked = false; nothing.disabled = e.target.checked; }
+    }
     if (e.target.classList.contains('nothing')) {
       const r = e.target.dataset.r;
       const link = document.getElementById('breakLink-' + r);
       link.disabled = e.target.checked;
       if (e.target.checked) link.value = '';
+      // Also grey out that round's break "Browse library" button.
+      const browseBreak = document.getElementById('browseBreak-' + r);
+      if (browseBreak) browseBreak.disabled = e.target.checked;
+      // "Play nothing" and "Continue break" can't both be on.
+      const cont = document.getElementById('continueBreak-' + r);
+      if (cont) { if (e.target.checked) cont.checked = false; cont.disabled = e.target.checked;
+                  const entry = document.getElementById('breakEntry-' + r);
+                  if (entry && !e.target.checked) entry.classList.remove('hidden'); }
       // If this round has its own break-duration picker, switch "match" off (no video to match).
       const sel = document.getElementById('breakDur-' + r + '-sel');
       if (sel) {
@@ -411,6 +669,128 @@
       }
     }
   });
+
+  // =====================================================================
+  //  VIDEO LIBRARY (the searchable "Browse library" picker)
+  // =====================================================================
+  // The starter set. Each link is stored in the simple youtu.be form so it always
+  // parses. bestFor 'both' means it shows whether you filter for work or for break.
+  const LIBRARY = [
+    { title: "60's 70's RnB Soul Groove – Barry White, Marvin Gaye, Chaka Khan, Luther Vandross, Stevie Wonder",
+      link: "https://youtu.be/4Ci3QLilOrw", category: "Music", bestFor: "both", length: "live", tags: ["soul", "has words", "live"] },
+    { title: "Not Getting Up. – Vintage Noir Jazz for Quiet Mornings",
+      link: "https://youtu.be/E3wkJk6LzUE", category: "Music", bestFor: "work", length: "3 hr 2 min", tags: ["jazz", "calm", "no words"] },
+    { title: "Lower Your Cortisol Sound Bath | Crystal Singing Bowls for Relaxation",
+      link: "https://youtu.be/8-N1RM3KWFI", category: "Music", bestFor: "work", length: "3 hr 33 min", tags: ["sound bath", "calm", "no words"] },
+    { title: "70's Best Disco, Funk & R'n'B Hits Vol.1",
+      link: "https://youtu.be/qizKODkJVdY", category: "Music", bestFor: "both", length: "52 min", tags: ["disco", "upbeat", "has words"] },
+    { title: "Deep Focus Background Music",
+      link: "https://youtu.be/n7BhvbJcfoo", category: "Music", bestFor: "work", length: "live", tags: ["lo-fi", "r&b", "no words", "live"] },
+    { title: "5 Minute Arm Workout // Compound Exercises with Dumbbells!",
+      link: "https://youtu.be/J2uBfbaDnLk", category: "Exercise", bestFor: "break", length: "5 min", tags: ["arms", "dumbbells", "needs equipment", "5 min"] },
+    { title: "5 Minute Walking Workout | 700 Steps at Home",
+      link: "https://youtu.be/1ybTJCF9DoI", category: "Exercise", bestFor: "break", length: "5 min", tags: ["walking", "no equipment", "cardio", "5 min"] },
+    { title: "The brain-changing benefits of exercise | Wendy Suzuki | TED",
+      link: "https://youtu.be/BHY0FxzoKZE", category: "Learning", bestFor: "both", length: "13 min", tags: ["talk", "neuroscience", "exercise"] },
+    { title: "Sleep Is Your Superpower | Matt Walker | TED",
+      link: "https://youtu.be/5MuIMqhT8DM", category: "Learning", bestFor: "both", length: "19 min", tags: ["talk", "sleep"] },
+    { title: "A neuroscientist's guide to protecting your brain, in 58 minutes | Lisa Genova",
+      link: "https://youtu.be/LViE-cD_WJQ", category: "Learning", bestFor: "both", length: "58 min", tags: ["interview", "brain", "memory"] },
+    { title: "Willpower is the wrong tool for changing habits. Do this instead. | Charles Duhigg",
+      link: "https://youtu.be/ESMglAoD5vM", category: "Learning", bestFor: "both", length: "1 hr 23 min", tags: ["interview", "habits"] },
+    { title: "Historian Answers Folklore Questions | WIRED",
+      link: "https://youtu.be/i61jkjPtMuw", category: "Learning", bestFor: "both", length: "32 min", tags: ["explainer", "history", "folklore"] },
+  ];
+
+  let pickerTarget = null;   // the id of the link box we'll fill when a video is picked
+
+  // Build the Category dropdown from whatever categories actually exist in the library.
+  function fillCategoryOptions() {
+    const cats = [...new Set(LIBRARY.map(v => v.category))];
+    const sel = document.getElementById('libCategory');
+    sel.innerHTML = '<option value="all">All categories</option>' +
+      cats.map(c => `<option value="${c}">${c}</option>`).join('');
+  }
+
+  // Draw the rows that match the current search + dropdown filters.
+  function renderLibrary() {
+    const q = document.getElementById('libSearch').value.trim().toLowerCase();
+    const cat = document.getElementById('libCategory').value;
+    const best = document.getElementById('libBestFor').value;
+
+    const matches = LIBRARY.filter(item => {
+      if (cat !== 'all' && item.category !== cat) return false;
+      if (best !== 'all' && item.bestFor !== best && item.bestFor !== 'both') return false;
+      if (q) {
+        const haystack = (item.title + ' ' + item.category + ' ' + item.tags.join(' ')).toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+
+    const list = document.getElementById('libList');
+    if (matches.length === 0) {
+      list.innerHTML = '<div class="lib-empty">No videos match. Try clearing the search or filters.</div>';
+      return;
+    }
+    list.innerHTML = matches.map(item => {
+      const tags = item.tags.map(t => `<button type="button" class="lib-tag" data-tag="${t}">${t}</button>`).join('');
+      const bestLabel = item.bestFor === 'both' ? 'work or break' : item.bestFor;
+      const lengthLabel = item.length ? ' · ' + item.length : '';
+      return `<div class="lib-row">
+        <div class="lib-title">${item.title}</div>
+        <div class="lib-cat">${item.category} · ${bestLabel}${lengthLabel}</div>
+        <div class="lib-tags">${tags}</div>
+        <button type="button" class="lib-use" data-link="${item.link}">Use this</button>
+      </div>`;
+    }).join('');
+  }
+
+  function openPicker(targetId) {
+    pickerTarget = targetId;
+    document.getElementById('libSearch').value = '';
+    document.getElementById('libCategory').value = 'all';
+    document.getElementById('libBestFor').value = 'all';
+    renderLibrary();
+    const panel = document.getElementById('libraryPanel');
+    panel.classList.add('active');
+    panel.scrollTop = 0;
+  }
+  function closePicker() {
+    document.getElementById('libraryPanel').classList.remove('active');
+    pickerTarget = null;
+  }
+  function pickVideo(link) {
+    if (pickerTarget) {
+      const box = document.getElementById(pickerTarget);
+      if (box) box.value = link;
+    }
+    closePicker();
+  }
+
+  // Open the picker from any "Browse library" button on Step 2.
+  document.getElementById('step2Body').addEventListener('click', (e) => {
+    const btn = e.target.closest('.browse-btn');
+    if (btn && !btn.disabled) openPicker(btn.dataset.target);
+  });
+
+  // Inside the picker: tags filter the list, "Use this" fills the box.
+  document.getElementById('libList').addEventListener('click', (e) => {
+    const use = e.target.closest('.lib-use');
+    if (use) { pickVideo(use.dataset.link); return; }
+    const tag = e.target.closest('.lib-tag');
+    if (tag) { document.getElementById('libSearch').value = tag.dataset.tag; renderLibrary(); }
+  });
+
+  document.getElementById('libSearch').addEventListener('input', renderLibrary);
+  document.getElementById('libCategory').addEventListener('change', renderLibrary);
+  document.getElementById('libBestFor').addEventListener('change', renderLibrary);
+  document.getElementById('libClose').addEventListener('click', closePicker);
+  // Tapping the dark area outside the sheet also closes the picker.
+  document.getElementById('libraryPanel').addEventListener('click', (e) => {
+    if (e.target.id === 'libraryPanel') closePicker();
+  });
+  fillCategoryOptions();
 
   // =====================================================================
   //  READING WHAT WAS TYPED
@@ -425,6 +805,11 @@
       if (list) return { type: 'playlist', id: list };
       let v = url.searchParams.get('v');
       if (!v && url.hostname.includes('youtu.be')) v = url.pathname.slice(1);
+      // Path-style links: youtube.com/live/ID, /embed/ID, /shorts/ID
+      if (!v) {
+        const m = url.pathname.match(/\/(?:live|embed|shorts)\/([A-Za-z0-9_-]+)/);
+        if (m) v = m[1];
+      }
       if (v) return { type: 'video', id: v };
     } catch (e) { return null; }
     return null;
@@ -447,32 +832,46 @@
     err.textContent = '';
     const rounds = [];
 
-    if (state.sameTimings) {
+    if (state.sameTimings && !state.lockedTimings) {
       const w = readDuration('sharedWork'), b = readDuration('sharedBreak');
       if (w === null || b === null) { err.textContent = 'Please enter a valid custom length (in minutes).'; return false; }
       state.sharedWork = w; state.sharedBreak = b;
     }
 
     for (let r = 0; r < state.numRounds; r++) {
-      const work = parseYouTube(document.getElementById('workLink-' + r).value);
-      if (!work) { err.textContent = `Round ${r + 1}: add a YouTube link for the work part.`; return false; }
+      // Work: either continue the previous round's work video, or read this round's link.
+      const cw = document.getElementById('continueWork-' + r);
+      const workContinue = !!(cw && cw.checked);
+      let work = null;
+      if (!workContinue) {
+        work = parseYouTube(document.getElementById('workLink-' + r).value);
+        if (!work) { err.textContent = `Round ${r + 1}: add a YouTube link for the work part.`; return false; }
+      }
 
+      // Break: continue, play nothing, or read this round's link.
+      const cb = document.getElementById('continueBreak-' + r);
+      const breakContinue = !!(cb && cb.checked);
       const nothing = document.getElementById('breakNothing-' + r).checked;
       let brk = null;
-      if (!nothing) {
+      if (!breakContinue && !nothing) {
         brk = parseYouTube(document.getElementById('breakLink-' + r).value);
         if (!brk) { err.textContent = `Round ${r + 1}: add a break link, or tick "Play nothing".`; return false; }
       }
 
       let workDur, breakDur;
-      if (state.sameTimings) { workDur = state.sharedWork; breakDur = state.sharedBreak; }
-      else {
+      if (state.sameTimings) {
+        workDur = state.sharedWork; breakDur = state.sharedBreak;
+      } else if (state.lockedTimings) {
+        workDur = state.roundTimings[r].workDur;   // Movement: lengths fixed by the routine
+        breakDur = state.roundTimings[r].breakDur;
+      } else {
         workDur = readDuration('workDur-' + r);
         breakDur = readDuration('breakDur-' + r);
         if (workDur === null || breakDur === null) { err.textContent = `Round ${r + 1}: enter a valid custom length.`; return false; }
       }
 
-      rounds.push({ workContent: work, breakContent: brk, breakNothing: nothing, workDur, breakDur });
+      rounds.push({ workContent: work, breakContent: brk, breakNothing: nothing,
+                    workContinue, breakContinue, workDur, breakDur });
     }
     state.rounds = rounds;
     return true;
@@ -495,12 +894,17 @@
     });
   }
 
-  function loadContent(content) {
+  function loadContent(content, resume) {
     if (!player || !content) return;
     videoEnded = false;
     player.setVolume(100);
-    if (content.type === 'playlist') player.loadPlaylist({ listType: 'playlist', list: content.id });
-    else player.loadVideoById(content.id);
+    if (content.type === 'playlist') {
+      player.loadPlaylist({ listType: 'playlist', list: content.id });
+    } else {
+      // Resume from the saved spot only when this phase is meant to continue; otherwise start at 0.
+      const startSeconds = resume ? (resumeAt[content.id] || 0) : 0;
+      player.loadVideoById({ videoId: content.id, startSeconds });
+    }
   }
   function stopPlayer() { if (player && playerReady) { try { player.stopVideo(); } catch (e) {} } }
 
@@ -602,12 +1006,29 @@
   // Turn the rounds into a flat list of phases to play one after another.
   function buildPhases() {
     const phases = [];
+    let lastWork = null, lastBreak = null;   // the most recent work/break video, for "continue"
     for (let r = 0; r < state.numRounds; r++) {
       const rd = state.rounds[r];
-      phases.push({ kind: 'work', round: r, dur: rd.workDur, content: rd.workContent, nothing: false });
-      // A "nothing" break can't match a video, so fall back to skipping it in that rare combo.
-      let bdur = rd.breakNothing && rd.breakDur === 'match' ? 0 : rd.breakDur;
-      phases.push({ kind: 'break', round: r, dur: bdur, content: rd.breakNothing ? null : rd.breakContent, nothing: rd.breakNothing });
+
+      // WORK — continue the previous round's work video, or use this round's own.
+      const workContent = rd.workContinue ? lastWork : rd.workContent;
+      phases.push({ kind: 'work', round: r, dur: rd.workDur, content: workContent,
+                    nothing: false, continueFromPrev: !!rd.workContinue });
+      lastWork = workContent;
+
+      // BREAK — continue, play nothing, or use this round's own video.
+      let breakContent, breakNothing;
+      if (rd.breakContinue) {
+        breakContent = lastBreak;                 // inherit the previous break video
+        breakNothing = (breakContent === null);   // if there wasn't one, it's just a quiet break
+      } else {
+        breakNothing = rd.breakNothing;
+        breakContent = breakNothing ? null : rd.breakContent;
+      }
+      const bdur = breakNothing && rd.breakDur === 'match' ? 0 : rd.breakDur;
+      phases.push({ kind: 'break', round: r, dur: bdur, content: breakContent,
+                    nothing: breakNothing, continueFromPrev: !!rd.breakContinue && !breakNothing });
+      lastBreak = breakContent;
     }
     return phases;
   }
@@ -627,16 +1048,30 @@
       stopPlayer(); wrap.classList.add('hidden'); rest.classList.add('active');
     } else {
       wrap.classList.remove('hidden'); rest.classList.remove('active');
-      loadContent(p.content);
+      loadContent(p.content, p.continueFromPrev);
     }
 
-    if (p.dur === 'match') await runMatchVideo();
-    else if (p.dur > 0) await runTimer(p.dur);
+    if (p.dur === 'match') {
+      await runMatchVideo();
+      // A matched video played to its end, so start fresh if it's ever reused.
+      if (p.content && p.content.type === 'video') delete resumeAt[p.content.id];
+    } else if (p.dur > 0) {
+      await runTimer(p.dur);
+      // Remember where a single video reached so a later phase can carry on from there.
+      // If it ran out during this phase, forget it so it restarts cleanly next time.
+      if (p.content && p.content.type === 'video' && player && playerReady) {
+        try {
+          if (videoEnded) delete resumeAt[p.content.id];
+          else resumeAt[p.content.id] = player.getCurrentTime();
+        } catch (e) {}
+      }
+    }
     // (dur of 0 = skip straight through)
   }
 
   async function runSession() {
     session = { cancelled: false };
+    resumeAt = {};   // fresh session → every video starts from the beginning
     const phases = buildPhases();
     showScreen('running');
 
