@@ -272,29 +272,62 @@
   .lib-controls { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
   .lib-selects { display: flex; gap: 10px; }
   .lib-selects .dur { flex: 1; }
-  .lib-list { display: flex; flex-direction: column; gap: 12px; }
-  .lib-row {
-    display: flex; flex-direction: column;
-    background: rgba(7,28,56,0.72); border: 1px solid var(--surface-line);
-    border-radius: 16px; padding: 14px 16px;
+  .lib-list { display: block; }               /* the table sits directly inside */
+
+  /* The library as a clean table: one row per video, columns lined up. */
+  .lib-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .lib-table thead th {
+    text-align: left; font-family: "Inter", sans-serif; font-weight: 600;
+    font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+    padding: 0 10px 8px 0; border-bottom: 1px solid var(--surface-line);
   }
-  .lib-title { font-family: "Poppins", sans-serif; font-weight: 600; font-size: 15px; line-height: 1.3; margin-bottom: 4px; }
-  .lib-cat { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
-  .lib-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
-  .lib-tag {
-    background: rgba(183,157,240,0.14); border: 1px solid rgba(183,157,240,0.4);
-    color: #C9B8F4; border-radius: 999px; padding: 4px 11px; font-size: 12px;
-    cursor: pointer; font-family: inherit;
+  .lib-table thead th:last-child { padding-right: 0; }
+  .lib-table tbody td {
+    padding: 11px 10px 11px 0; border-bottom: 1px solid var(--surface-line);
+    vertical-align: top; color: var(--text);
   }
-  .lib-tag:hover, .lib-tag:focus-visible { border-color: var(--accent); outline: none; }
+  .lib-table tbody tr:last-child td { border-bottom: none; }
+  .lt-title { font-family: "Poppins", sans-serif; font-weight: 600; line-height: 1.3; }
+  .lt-for, .lt-len { color: var(--muted); white-space: nowrap; }
+  .lt-tags { color: var(--muted); line-height: 1.4; }
+  .lt-action { text-align: right; white-space: nowrap; padding-right: 0 !important; }
+
   .lib-use {
-    align-self: flex-start;
-    background: var(--accent); color: #fff; border: none; border-radius: 10px;
-    padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+    background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer;
     font-family: "Poppins", sans-serif;
   }
   .lib-use:active { transform: scale(.99); }
+  /* A small ✕ to remove one of YOUR saved videos (never shown on the built-in ones). */
+  .lib-remove {
+    margin-left: 6px; width: 24px; height: 24px; line-height: 1;
+    background: transparent; border: 1px solid var(--surface-line);
+    border-radius: 7px; color: var(--muted); cursor: pointer; font-family: inherit; font-size: 12px;
+  }
+  .lib-remove:hover, .lib-remove:focus-visible { border-color: var(--accent); color: var(--text); outline: none; }
   .lib-empty { color: var(--muted); font-size: 14px; text-align: center; padding: 30px 0; }
+
+  /* ---------- "Save to library" button (sits beside "Browse library") ---------- */
+  .save-btn {
+    margin-top: 8px; margin-left: 8px; padding: 9px 14px; font-size: 13px;
+    background: transparent; border: 1px solid var(--surface-line);
+    border-radius: 10px; color: var(--accent); cursor: pointer; font-family: inherit;
+  }
+  .save-btn:hover, .save-btn:focus-visible { border-color: var(--accent); outline: none; }
+  .save-btn:disabled { opacity: .4; cursor: default; }
+
+  /* ---------- "Save to library" form (its own pop-over, like the picker) ---------- */
+  #savePanel {
+    position: fixed; inset: 0; z-index: 70;
+    background: rgba(4,16,32,0.92); backdrop-filter: blur(4px);
+    display: none; justify-content: center; overflow-y: auto; padding: 24px 18px;
+  }
+  #savePanel.active { display: flex; align-items: flex-start; }
+  .save-form { display: flex; flex-direction: column; }
+  .save-hint { font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+  .save-actions { display: flex; gap: 12px; margin-top: 20px; }
+  .save-actions .btn { flex: 1; }
+  .save-error { color: #FFB3A1; font-size: 13px; margin-top: 12px; min-height: 18px; }
 
   @media (prefers-reduced-motion: reduce) {
     .count-num.pop { animation: none; }
@@ -432,6 +465,43 @@
     </div>
   </div>
 
+  <!-- ============ SAVE-TO-LIBRARY FORM ============ -->
+  <div id="savePanel">
+    <div class="lib-sheet">
+      <div class="lib-head">
+        <h2>Save to library</h2>
+        <button type="button" class="lib-close" id="saveCancel">Cancel</button>
+      </div>
+      <div class="save-form">
+        <p class="save-hint">Only a title is needed — everything else is optional.</p>
+
+        <label for="saveTitle">Title</label>
+        <input type="text" class="input" id="saveTitle" placeholder="What do you want to call it?">
+
+        <label for="saveCategory">Category (optional)</label>
+        <input type="text" class="input" id="saveCategory" placeholder="e.g. Music — leave blank for “Saved”">
+
+        <label for="saveBestFor">Best for (optional)</label>
+        <div class="dur"><select class="sel" id="saveBestFor">
+          <option value="both">Work or break</option>
+          <option value="work">Work</option>
+          <option value="break">Break</option>
+        </select></div>
+
+        <label for="saveTags">Tags (optional)</label>
+        <input type="text" class="input" id="saveTags" placeholder="Separate with commas — e.g. calm, no words">
+
+        <label for="saveLength">Length (optional)</label>
+        <input type="text" class="input" id="saveLength" placeholder="e.g. 25 min, or 3 hr 2 min">
+
+        <div class="save-error" id="saveError"></div>
+        <div class="save-actions">
+          <button type="button" class="btn" id="saveConfirmBtn">Save to library</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
   // =====================================================================
@@ -452,6 +522,9 @@
   // Remembers how far each single video has played, by its video id, so a video reused
   // later in the same session can carry on instead of restarting. Cleared each new session.
   let resumeAt = {};
+  // When we resume a video, this holds the spot (in seconds) we must force it to jump to
+  // once it actually starts playing — a safety net for browsers that ignore "start at X".
+  let pendingSeek = 0;
 
   const RING_R = 114;
   const RING_LEN = 2 * Math.PI * RING_R;
@@ -614,6 +687,7 @@
           <label>Work playlist link</label>
           <input class="input" id="workLink-${r}" placeholder="YouTube playlist or video link…">
           <button type="button" class="browse-btn" data-target="workLink-${r}">＋ Browse library</button>
+          <button type="button" class="save-btn" data-savetarget="workLink-${r}">☆ Save to library</button>
         </div>
         ${continueBreak}
         <label class="check"><input type="checkbox" class="nothing" id="breakNothing-${r}" data-r="${r}"> Play nothing during this break</label>
@@ -621,6 +695,7 @@
           <label>Break playlist link</label>
           <input class="input" id="breakLink-${r}" placeholder="YouTube playlist or video link…">
           <button type="button" class="browse-btn" id="browseBreak-${r}" data-target="breakLink-${r}">＋ Browse library</button>
+          <button type="button" class="save-btn" id="saveBreak-${r}" data-savetarget="breakLink-${r}">☆ Save to library</button>
         </div>
       </div>`;
     }
@@ -655,6 +730,8 @@
       // Also grey out that round's break "Browse library" button.
       const browseBreak = document.getElementById('browseBreak-' + r);
       if (browseBreak) browseBreak.disabled = e.target.checked;
+      const saveBreak = document.getElementById('saveBreak-' + r);
+      if (saveBreak) saveBreak.disabled = e.target.checked;
       // "Play nothing" and "Continue break" can't both be on.
       const cont = document.getElementById('continueBreak-' + r);
       if (cont) { if (e.target.checked) cont.checked = false; cont.disabled = e.target.checked;
@@ -702,11 +779,76 @@
       link: "https://youtu.be/i61jkjPtMuw", category: "Learning", bestFor: "both", length: "32 min", tags: ["explainer", "history", "folklore"] },
   ];
 
-  let pickerTarget = null;   // the id of the link box we'll fill when a video is picked
+  let pickerTarget = null;    // the id of the link box we'll fill when a video is picked
+  let saveTargetId = null;    // the id of the link box the "Save to library" form reads from
+
+  // ---- YOUR saved videos (kept in this browser only) --------------------------
+  // These live in the browser's own storage box (localStorage), so they survive
+  // closing and reopening the app ON THIS DEVICE. They do NOT sync to other
+  // devices, and this storage is unavailable in sandboxed previews — it only
+  // works on the live (hosted) site.
+  const SAVED_KEY = 'perfectPomodoro.savedVideos';
+
+  // Read the saved list back out of storage (empty list if none / if blocked).
+  function loadSavedVideos() {
+    try {
+      const raw = localStorage.getItem(SAVED_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Write the saved list back to storage. Returns false if the browser blocked it.
+  function persistSavedVideos() {
+    try {
+      localStorage.setItem(SAVED_KEY, JSON.stringify(savedVideos));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  let savedVideos = loadSavedVideos();
+
+  // The picker shows the built-in library and your saved videos together.
+  function allLibraryItems() {
+    return LIBRARY.concat(savedVideos);
+  }
+
+  // Turn a pasted link into a clean, single-video library link.
+  // Prefers the real video (v=…), so a "radio mix" (…&list=RD…) is saved as the
+  // one video you picked — not YouTube's shuffling auto-playlist.
+  function normalizeForLibrary(raw) {
+    if (!raw) return null;
+    const text = raw.trim();
+    // A bare 11-character video id.
+    if (!text.includes('http') && /^[A-Za-z0-9_-]{11}$/.test(text)) {
+      return 'https://youtu.be/' + text;
+    }
+    try {
+      const url = new URL(text);
+      // A single video is our first choice.
+      let v = url.searchParams.get('v');
+      if (!v && url.hostname.includes('youtu.be')) v = url.pathname.slice(1);
+      if (!v) {
+        const m = url.pathname.match(/\/(?:live|embed|shorts)\/([A-Za-z0-9_-]+)/);
+        if (m) v = m[1];
+      }
+      if (v) return 'https://youtu.be/' + v;
+      // No single video — keep a genuine playlist, but ignore auto "radio" mixes (RD…).
+      const list = url.searchParams.get('list');
+      if (list && !list.startsWith('RD')) {
+        return 'https://www.youtube.com/playlist?list=' + list;
+      }
+    } catch (e) { return null; }
+    return null;
+  }
 
   // Build the Category dropdown from whatever categories actually exist in the library.
   function fillCategoryOptions() {
-    const cats = [...new Set(LIBRARY.map(v => v.category))];
+    const cats = [...new Set(allLibraryItems().map(v => v.category))];
     const sel = document.getElementById('libCategory');
     sel.innerHTML = '<option value="all">All categories</option>' +
       cats.map(c => `<option value="${c}">${c}</option>`).join('');
@@ -718,7 +860,7 @@
     const cat = document.getElementById('libCategory').value;
     const best = document.getElementById('libBestFor').value;
 
-    const matches = LIBRARY.filter(item => {
+    const matches = allLibraryItems().filter(item => {
       if (cat !== 'all' && item.category !== cat) return false;
       if (best !== 'all' && item.bestFor !== best && item.bestFor !== 'both') return false;
       if (q) {
@@ -733,17 +875,29 @@
       list.innerHTML = '<div class="lib-empty">No videos match. Try clearing the search or filters.</div>';
       return;
     }
-    list.innerHTML = matches.map(item => {
-      const tags = item.tags.map(t => `<button type="button" class="lib-tag" data-tag="${t}">${t}</button>`).join('');
-      const bestLabel = item.bestFor === 'both' ? 'work or break' : item.bestFor;
-      const lengthLabel = item.length ? ' · ' + item.length : '';
-      return `<div class="lib-row">
-        <div class="lib-title">${item.title}</div>
-        <div class="lib-cat">${item.category} · ${bestLabel}${lengthLabel}</div>
-        <div class="lib-tags">${tags}</div>
-        <button type="button" class="lib-use" data-link="${item.link}">Use this</button>
-      </div>`;
+
+    // One table row per video: Title | For | Length | Tags | (Use + remove).
+    const rows = matches.map(item => {
+      const forLabel = item.bestFor === 'both' ? 'both' : item.bestFor;
+      const lengthLabel = item.length ? item.length : '—';
+      const tagsLabel = (item.tags && item.tags.length) ? item.tags.join(', ') : '—';
+      // Only YOUR saved videos get a remove ✕ — the built-in ones can't be deleted.
+      const removeBtn = item.saved
+        ? `<button type="button" class="lib-remove" data-id="${item.id}" aria-label="Remove from your saved videos" title="Remove from your saved videos">✕</button>`
+        : '';
+      return `<tr>
+        <td class="lt-title">${item.title}</td>
+        <td class="lt-for">${forLabel}</td>
+        <td class="lt-len">${lengthLabel}</td>
+        <td class="lt-tags">${tagsLabel}</td>
+        <td class="lt-action"><button type="button" class="lib-use" data-link="${item.link}">Use</button>${removeBtn}</td>
+      </tr>`;
     }).join('');
+
+    list.innerHTML = `<table class="lib-table">
+      <thead><tr><th>Video</th><th>For</th><th>Length</th><th>Tags</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
   }
 
   function openPicker(targetId) {
@@ -768,18 +922,91 @@
     closePicker();
   }
 
+  // ---- Save-to-library form ---------------------------------------------------
+  // Opens the form, remembering which link box (work or break) it was opened from.
+  function openSaveForm(targetId) {
+    saveTargetId = targetId;
+    document.getElementById('saveTitle').value = '';
+    document.getElementById('saveCategory').value = '';
+    document.getElementById('saveBestFor').value = 'both';
+    document.getElementById('saveTags').value = '';
+    document.getElementById('saveLength').value = '';
+    document.getElementById('saveError').textContent = '';
+    const panel = document.getElementById('savePanel');
+    panel.classList.add('active');
+    panel.scrollTop = 0;
+    document.getElementById('saveTitle').focus();
+  }
+
+  function closeSaveForm() {
+    document.getElementById('savePanel').classList.remove('active');
+    saveTargetId = null;
+  }
+
+  // Validate the form, build the entry, and store it.
+  function submitSaveForm() {
+    const errEl = document.getElementById('saveError');
+
+    // 1) Title is the only required field.
+    const title = document.getElementById('saveTitle').value.trim();
+    if (!title) { errEl.textContent = 'Please give this video a title.'; return; }
+
+    // 2) Read the link from the box this form was opened for, and clean it up.
+    const box = saveTargetId ? document.getElementById(saveTargetId) : null;
+    const link = box ? normalizeForLibrary(box.value) : null;
+    if (!link) { errEl.textContent = 'Paste a valid YouTube link in the box first.'; return; }
+
+    // 3) Don't add the same video twice.
+    if (allLibraryItems().some(v => v.link === link)) {
+      errEl.textContent = 'That video is already in your library.'; return;
+    }
+
+    // 4) Build the entry, filling optional fields with sensible defaults.
+    const category = document.getElementById('saveCategory').value.trim() || 'Saved';
+    const bestFor  = document.getElementById('saveBestFor').value || 'both';
+    const length   = document.getElementById('saveLength').value.trim();
+    const tags     = document.getElementById('saveTags').value
+                       .split(',').map(t => t.trim()).filter(Boolean);
+
+    savedVideos.push({
+      id: 'saved-' + Date.now(),   // unique handle so "remove" can find this one
+      title, link, category, bestFor, length, tags, saved: true
+    });
+
+    // 5) Remember it for next time (this browser only) and refresh the categories.
+    const stored = persistSavedVideos();
+    fillCategoryOptions();
+    closeSaveForm();
+    if (!stored) {
+      alert('Saved for now, but this browser blocked permanent storage, so it may not be here next time.');
+    }
+  }
+
+  // Remove one of YOUR saved videos (built-in ones have no ✕, so can't reach here).
+  function removeSavedVideo(id) {
+    const item = savedVideos.find(v => v.id === id);
+    if (!item) return;
+    if (!confirm('Remove “' + item.title + '” from your saved videos?')) return;
+    savedVideos = savedVideos.filter(v => v.id !== id);
+    persistSavedVideos();
+    fillCategoryOptions();
+    renderLibrary();
+  }
+
   // Open the picker from any "Browse library" button on Step 2.
   document.getElementById('step2Body').addEventListener('click', (e) => {
-    const btn = e.target.closest('.browse-btn');
-    if (btn && !btn.disabled) openPicker(btn.dataset.target);
+    const browse = e.target.closest('.browse-btn');
+    if (browse && !browse.disabled) { openPicker(browse.dataset.target); return; }
+    const save = e.target.closest('.save-btn');
+    if (save && !save.disabled) { openSaveForm(save.dataset.savetarget); return; }
   });
 
   // Inside the picker: tags filter the list, "Use this" fills the box.
   document.getElementById('libList').addEventListener('click', (e) => {
+    const remove = e.target.closest('.lib-remove');
+    if (remove) { removeSavedVideo(remove.dataset.id); return; }
     const use = e.target.closest('.lib-use');
     if (use) { pickVideo(use.dataset.link); return; }
-    const tag = e.target.closest('.lib-tag');
-    if (tag) { document.getElementById('libSearch').value = tag.dataset.tag; renderLibrary(); }
   });
 
   document.getElementById('libSearch').addEventListener('input', renderLibrary);
@@ -790,6 +1017,14 @@
   document.getElementById('libraryPanel').addEventListener('click', (e) => {
     if (e.target.id === 'libraryPanel') closePicker();
   });
+
+  // Save-to-library form controls.
+  document.getElementById('saveConfirmBtn').addEventListener('click', submitSaveForm);
+  document.getElementById('saveCancel').addEventListener('click', closeSaveForm);
+  document.getElementById('savePanel').addEventListener('click', (e) => {
+    if (e.target.id === 'savePanel') closeSaveForm();
+  });
+
   fillCategoryOptions();
 
   // =====================================================================
@@ -888,7 +1123,17 @@
         playerVars: { playsinline: 1, rel: 0 },
         events: {
           onReady: () => { playerReady = true; resolve(); },
-          onStateChange: (e) => { if (e.data === YT.PlayerState.ENDED) videoEnded = true; },
+          onStateChange: (e) => {
+            if (e.data === YT.PlayerState.ENDED) videoEnded = true;
+            // If we're resuming a video, force the jump the moment it starts playing —
+            // this rescues browsers that ignore the "start at X" instruction. We only
+            // do it once per load so we don't fight the user or the countdown.
+            if (e.data === YT.PlayerState.PLAYING && pendingSeek > 0) {
+              const target = pendingSeek;
+              pendingSeek = 0;
+              try { player.seekTo(target, true); } catch (err) {}
+            }
+          },
         },
       });
     });
@@ -897,12 +1142,16 @@
   function loadContent(content, resume) {
     if (!player || !content) return;
     videoEnded = false;
+    pendingSeek = 0;              // clear any leftover jump target from a previous load
     player.setVolume(100);
     if (content.type === 'playlist') {
       player.loadPlaylist({ listType: 'playlist', list: content.id });
     } else {
       // Resume from the saved spot only when this phase is meant to continue; otherwise start at 0.
       const startSeconds = resume ? (resumeAt[content.id] || 0) : 0;
+      // Belt-and-braces: ask YouTube to start at the saved spot AND (in onStateChange)
+      // force a jump there once it plays, since some browsers ignore startSeconds.
+      if (startSeconds > 0) pendingSeek = startSeconds;
       player.loadVideoById({ videoId: content.id, startSeconds });
     }
   }
@@ -1061,8 +1310,16 @@
       // If it ran out during this phase, forget it so it restarts cleanly next time.
       if (p.content && p.content.type === 'video' && player && playerReady) {
         try {
-          if (videoEnded) delete resumeAt[p.content.id];
-          else resumeAt[p.content.id] = player.getCurrentTime();
+          if (videoEnded) {
+            delete resumeAt[p.content.id];
+          } else {
+            // Only store a real, positive time — never let a stray 0 wipe the spot,
+            // which would make the next "continue" round restart from the beginning.
+            const here = player.getCurrentTime();
+            if (typeof here === 'number' && isFinite(here) && here > 0) {
+              resumeAt[p.content.id] = here;
+            }
+          }
         } catch (e) {}
       }
     }
