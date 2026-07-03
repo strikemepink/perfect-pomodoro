@@ -220,6 +220,12 @@
   }
   .rest-panel.active { display: flex; }
 
+  /* Pause + Save controls shown on the running screen */
+  .run-controls { display: flex; gap: 12px; width: 100%; max-width: 440px; margin-bottom: 12px; }
+  .run-controls .btn { flex: 1; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .save-toast { min-height: 20px; margin-bottom: 14px; color: var(--accent); font-weight: 600; font-size: 14px; }
+
   /* ---------- Countdown overlay (the 5-second transition) ---------- */
   #countdown {
     position: fixed; inset: 0; z-index: 50;
@@ -413,6 +419,14 @@
       <div class="clock" id="clock">25:00</div>
       <div id="player-wrap"><div id="player"></div></div>
       <div class="rest-panel" id="restPanel">Rest. The next round starts on its own.</div>
+
+      <!-- Pause/Resume and one-tap Save-to-library, available while a session runs -->
+      <div class="run-controls">
+        <button class="btn ghost" id="pauseBtn">⏸ Pause</button>
+        <button class="btn ghost" id="saveNowBtn">☆ Save to library</button>
+      </div>
+      <div class="save-toast" id="saveToast" aria-live="polite"></div>
+
       <button class="btn ghost" id="endBtn" style="max-width:200px;">End session</button>
     </div>
   </section>
@@ -522,6 +536,11 @@
   // Remembers how far each single video has played, by its video id, so a video reused
   // later in the same session can carry on instead of restarting. Cleared each new session.
   let resumeAt = {};
+  // State used by the on-screen Save and Pause controls during a running session.
+  let nowPlaying = null;    // the video/playlist playing right now, or null during a quiet break
+  let paused = false;       // is the session currently paused?
+  let pauseStartedAt = 0;   // when the current pause began (milliseconds)
+  let activeEndAt = null;   // the running timer's finish time (ms); module-level so Pause can shift it
   // When we resume a video, this holds the spot (in seconds) we must force it to jump to
   // once it actually starts playing — a safety net for browsers that ignore "start at X".
   let pendingSeek = 0;
@@ -763,6 +782,34 @@
       link: "https://youtu.be/qizKODkJVdY", category: "Music", bestFor: "both", length: "52 min", tags: ["disco", "upbeat", "has words"] },
     { title: "Deep Focus Background Music",
       link: "https://youtu.be/n7BhvbJcfoo", category: "Music", bestFor: "work", length: "live", tags: ["lo-fi", "r&b", "no words", "live"] },
+    // --- 13 music / ambient videos added this session (approved in the previous session). ---
+    // The 9 with length: "" simply show a dash in the Length column until real lengths are added.
+    { title: "80s Timeless Hits Playlist – Iconic Songs That Defined the Decade",
+      link: "https://youtu.be/CVM1bGiylio", category: "Music", bestFor: "both", length: "", tags: ["80s", "upbeat", "has words"] },
+    { title: "Peaceful Morning with Snoopy – Positive Jazz to Refresh Your Mind",
+      link: "https://youtu.be/8axRICKfgw8", category: "Music", bestFor: "work", length: "", tags: ["jazz", "calm", "no words"] },
+    { title: "Deep Focus Flow High Concentration – 90s Hip-Hop + Isochronic Tones",
+      link: "https://youtu.be/0Sbn1nDIHOw", category: "Music", bestFor: "work", length: "", tags: ["hip-hop", "focus", "no words"] },
+    { title: "Hyper Focus Mode – Concentration Music / Deep Flow 2026",
+      link: "https://youtu.be/eo1gKGt6h9M", category: "Music", bestFor: "work", length: "", tags: ["focus", "ambient", "no words"] },
+    { title: "ADHD Intense Relief – Organic House + Isochronic Tones",
+      link: "https://youtu.be/QM1VLD16tDU", category: "Music", bestFor: "work", length: "live", tags: ["house", "focus", "no words", "live"] },
+    { title: "100% Focus Mode – 40Hz Gamma Waves Deep Work",
+      link: "https://youtu.be/_xbCrx5YGks", category: "Music", bestFor: "work", length: "3 hr", tags: ["gamma waves", "focus", "no words"] },
+    { title: "Stop Procrastinating – Restore Focus & Start Working",
+      link: "https://youtu.be/1MGhGrKnGAk", category: "Music", bestFor: "work", length: "2 hr", tags: ["binaural", "focus", "no words"] },
+    { title: "Mozart Effect for Lasting Focus – Classical Music for Deep Work",
+      link: "https://youtu.be/bf3XNXT6QVk", category: "Music", bestFor: "work", length: "", tags: ["classical", "focus", "no words"] },
+    { title: "30 Most Famous Beautiful Classical Music Melodies – Mozart, Beethoven, Chopin",
+      link: "https://youtu.be/HISqxCJpRB4", category: "Music", bestFor: "work", length: "3 hr 26 min", tags: ["classical", "calm", "no words"] },
+    { title: "Forest Ambience – Birds Singing & Stream Sounds (ASMR)",
+      link: "https://youtu.be/UysZVv2_PEw", category: "Music", bestFor: "both", length: "", tags: ["nature", "ambience", "no words"] },
+    { title: "Tibetan Singing Bowl Healing – Release Stress, Anxiety & Emotional Pain",
+      link: "https://youtu.be/u_bLvkypmG8", category: "Music", bestFor: "work", length: "2 hr 36 min", tags: ["sound bath", "calm", "no words"] },
+    { title: "Boost Serotonin + Dopamine – 10Hz Isochronic + 528Hz Solfeggio",
+      link: "https://youtu.be/ALBLug7xciw", category: "Music", bestFor: "work", length: "", tags: ["tones", "focus", "no words"] },
+    { title: "Thunderstorm in the Library – Rainy Morning, Hot Tea & Quiet Reading",
+      link: "https://youtu.be/uQ-TWK1kW3c", category: "Music", bestFor: "both", length: "", tags: ["rain", "ambience", "no words"] },
     { title: "5 Minute Arm Workout // Compound Exercises with Dumbbells!",
       link: "https://youtu.be/J2uBfbaDnLk", category: "Exercise", bestFor: "break", length: "5 min", tags: ["arms", "dumbbells", "needs equipment", "5 min"] },
     { title: "5 Minute Walking Workout | 700 Steps at Home",
@@ -1196,13 +1243,14 @@
   // Fixed-length phase: counts down a set number of seconds.
   function runTimer(totalSecs) {
     return new Promise((resolve) => {
-      const endAt = Date.now() + totalSecs * 1000;
+      activeEndAt = Date.now() + totalSecs * 1000;   // module-level so Pause can shift it
       updateClock(totalSecs);
       const t = setInterval(() => {
-        if (session.cancelled) { clearInterval(t); resolve(); return; }
-        const left = Math.round((endAt - Date.now()) / 1000);
+        if (session.cancelled) { clearInterval(t); activeEndAt = null; resolve(); return; }
+        if (paused) return;                           // frozen while paused: don't tick or finish
+        const left = Math.round((activeEndAt - Date.now()) / 1000);
         updateClock(left);
-        if (Date.now() >= endAt) { clearInterval(t); resolve(); }
+        if (Date.now() >= activeEndAt) { clearInterval(t); activeEndAt = null; resolve(); }
       }, 250);
     });
   }
@@ -1210,8 +1258,10 @@
   // "Match video length" phase: runs until the single video finishes.
   function runMatchVideo() {
     return new Promise((resolve) => {
+      activeEndAt = null;   // this phase is driven by the video itself, not a fixed finish time
       const t = setInterval(() => {
         if (session.cancelled || videoEnded) { clearInterval(t); resolve(); return; }
+        if (paused) return;   // frozen while paused (the video is paused, so its time doesn't move)
         try {
           const dur = player.getDuration(), cur = player.getCurrentTime();
           if (dur > 0) updateClock(Math.ceil(dur - cur));
@@ -1295,10 +1345,13 @@
     const wrap = document.getElementById('player-wrap'), rest = document.getElementById('restPanel');
     if (p.kind === 'break' && p.nothing) {
       stopPlayer(); wrap.classList.add('hidden'); rest.classList.add('active');
+      nowPlaying = null;                // quiet break: nothing to save
     } else {
       wrap.classList.remove('hidden'); rest.classList.remove('active');
       loadContent(p.content, p.continueFromPrev);
+      nowPlaying = p.content;           // remember what's playing so Save can grab it
     }
+    updateRunButtons();                 // enable/disable Save for this phase
 
     if (p.dur === 'match') {
       await runMatchVideo();
@@ -1329,6 +1382,8 @@
   async function runSession() {
     session = { cancelled: false };
     resumeAt = {};   // fresh session → every video starts from the beginning
+    paused = false; activeEndAt = null; nowPlaying = null;   // start unpaused and clean
+    updateRunButtons();
     const phases = buildPhases();
     showScreen('running');
 
@@ -1347,6 +1402,87 @@
   }
 
   // =====================================================================
+  //  RUNNING-SCREEN CONTROLS  (Save current video + Pause/Resume)
+  // =====================================================================
+
+  // Turn the currently-playing content ({type, id}) back into a storable link.
+  function contentToLink(content) {
+    if (!content || !content.id) return null;
+    if (content.type === 'playlist') return 'https://www.youtube.com/playlist?list=' + content.id;
+    return 'https://youtu.be/' + content.id;
+  }
+
+  // Briefly show a small confirmation line under the running-screen buttons.
+  let saveToastTimer = null;
+  function showSaveToast(msg) {
+    const el = document.getElementById('saveToast');
+    el.textContent = msg;
+    clearTimeout(saveToastTimer);
+    saveToastTimer = setTimeout(() => { el.textContent = ''; }, 2500);
+  }
+
+  // Keep the running-screen buttons in the right state:
+  //  - Save is greyed out when nothing is playing (a quiet break).
+  //  - Pause shows "Pause" or "Resume" depending on whether we're paused.
+  function updateRunButtons() {
+    const saveBtn = document.getElementById('saveNowBtn');
+    if (saveBtn) saveBtn.disabled = !nowPlaying;
+    const pauseBtn = document.getElementById('pauseBtn');
+    if (pauseBtn) pauseBtn.textContent = paused ? '▶ Resume' : '⏸ Pause';
+  }
+
+  // One-tap save: drop the currently-playing video straight into the library,
+  // using its real title read from the player (falling back to a generic name).
+  document.getElementById('saveNowBtn').addEventListener('click', () => {
+    if (!nowPlaying) return;                                  // quiet break: nothing to save
+    const link = normalizeForLibrary(contentToLink(nowPlaying));
+    if (!link) { showSaveToast('Couldn’t read this video.'); return; }
+
+    // Don't add the same video twice.
+    if (allLibraryItems().some(v => v.link === link)) {
+      showSaveToast('Already in your library.'); return;
+    }
+
+    // Read the real title from the player; fall back if it isn't available.
+    let title = 'Saved mid-session';
+    try {
+      const data = (player && playerReady) ? player.getVideoData() : null;
+      if (data && data.title) title = data.title;
+    } catch (e) {}
+
+    savedVideos.push({
+      id: 'saved-' + Date.now(),   // unique handle so "remove" can find this one
+      title, link, category: 'Saved', bestFor: 'both', length: '', tags: [], saved: true
+    });
+    const stored = persistSavedVideos();   // remember it in this browser
+    fillCategoryOptions();                 // make sure the "Saved" category shows up
+    showSaveToast(stored ? 'Saved ✓' : 'Saved (may not persist)');
+  });
+
+  // Freeze the countdown and the music.
+  function pauseRun() {
+    if (paused) return;
+    paused = true;
+    pauseStartedAt = Date.now();
+    if (player && playerReady) { try { player.pauseVideo(); } catch (e) {} }
+    updateRunButtons();
+  }
+
+  // Continue exactly where we left off, and restart the music.
+  function resumeRun() {
+    if (!paused) return;
+    // Push the finish line back by however long we were paused, so time-left stays exact.
+    if (activeEndAt !== null) activeEndAt += (Date.now() - pauseStartedAt);
+    paused = false;
+    if (player && playerReady) { try { player.playVideo(); } catch (e) {} }
+    updateRunButtons();
+  }
+
+  document.getElementById('pauseBtn').addEventListener('click', () => {
+    paused ? resumeRun() : pauseRun();
+  });
+
+  // =====================================================================
   //  START / END
   // =====================================================================
   document.getElementById('startSession').addEventListener('click', async () => {
@@ -1363,6 +1499,7 @@
 
   document.getElementById('endBtn').addEventListener('click', () => {
     if (session) session.cancelled = true;
+    paused = false; activeEndAt = null; nowPlaying = null;   // leave nothing paused behind
     document.getElementById('countdown').classList.remove('active');
     stopPlayer(); setMode('work'); showScreen('step1');
   });
