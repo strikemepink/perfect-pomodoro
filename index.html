@@ -313,6 +313,34 @@
   .lib-remove:hover, .lib-remove:focus-visible { border-color: var(--accent); color: var(--text); outline: none; }
   .lib-empty { color: var(--muted); font-size: 14px; text-align: center; padding: 30px 0; }
 
+  /* ---------- Step 2: "every round" option on round 1, and the note on later rounds ---------- */
+  .all-rounds { color: var(--text); font-weight: 500; }
+  .all-note { margin: 14px 0 0; font-size: 13px; color: var(--accent); }
+  .break-divider { border-top: 1px solid var(--surface-line); margin: 18px 0 4px; }
+
+  /* ---------- Library quick filters ("No words", "Upbeat") ---------- */
+  .lib-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .lib-chip {
+    padding: 7px 13px; font-size: 13px; font-family: inherit; cursor: pointer;
+    background: transparent; border: 1px solid var(--surface-line); border-radius: 999px; color: var(--muted);
+  }
+  .lib-chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* ---------- "Check videos": finds videos YouTube won't play inside the app ---------- */
+  .lib-head-btns { display: flex; gap: 8px; }
+  .lib-close:disabled { opacity: .5; cursor: default; }
+  .lib-check {
+    display: none; margin-bottom: 16px; padding: 12px 14px; font-size: 13px; line-height: 1.45;
+    background: var(--surface); border: 1px solid var(--surface-line); border-radius: 12px;
+  }
+  .lib-check.active { display: block; }
+  .lib-check .lib-use { margin-top: 10px; }
+  .lt-bad {
+    display: inline-block; margin-top: 4px; padding: 2px 7px; border-radius: 6px;
+    background: rgba(250,122,102,0.18); color: #FA7A66;
+    font-family: "Inter", sans-serif; font-weight: 500; font-size: 11px;
+  }
+
   /* ---------- "Save to library" button (sits beside "Browse library") ---------- */
   .save-btn {
     margin-top: 8px; margin-left: 8px; padding: 9px 14px; font-size: 13px;
@@ -462,8 +490,12 @@
     <div class="lib-sheet">
       <div class="lib-head">
         <h2>Video library</h2>
-        <button type="button" class="lib-close" id="libClose">Close</button>
+        <div class="lib-head-btns">
+          <button type="button" class="lib-close" id="libCheckBtn">Check videos</button>
+          <button type="button" class="lib-close" id="libClose">Close</button>
+        </div>
       </div>
+      <div class="lib-check" id="libCheck"></div>
       <div class="lib-controls">
         <input type="text" class="input" id="libSearch" placeholder="Search by title or tag — e.g. lofi, arms, no words…">
         <div class="lib-selects">
@@ -473,6 +505,10 @@
             <option value="work">For work</option>
             <option value="break">For break</option>
           </select></div>
+        </div>
+        <div class="lib-chips">
+          <button type="button" class="lib-chip" data-tag="no words" aria-pressed="false">No words</button>
+          <button type="button" class="lib-chip" data-tag="upbeat" aria-pressed="false">Upbeat</button>
         </div>
       </div>
       <div class="lib-list" id="libList"></div>
@@ -550,6 +586,9 @@
   const DOT_COLOURS = ['#FF4FA0','#B79DF0','#9D5CFF','#2E9CFF','#12E0C2','#FA7A66'];
 
   function onYouTubeIframeAPIReady() { apiReady = true; }
+  // If YouTube finished loading before this script ran, the line above was never
+  // called — so check directly too.
+  if (window.YT && YT.loaded) apiReady = true;
 
   // =====================================================================
   //  STEP 1 CONTROLS
@@ -698,28 +737,68 @@
         ? `<label class="check"><input type="checkbox" class="continue-break" id="continueBreak-${r}" data-r="${r}"> Continue the break video from the previous round</label>`
         : '';
 
+      // Round 1 only (when there's more than one round): apply round 1's choice to every
+      // round — keep its video going, or keep it quiet. Later rounds then just show a note.
+      const allRounds = (kind) => (r === 0 && n > 1)
+        ? `<label class="check all-rounds"><input type="checkbox" class="all-opt" id="all${kind}" data-kind="${kind}"> <span id="all${kind}Text"></span></label>`
+        : '';
+      const allNote = (kind) => r >= 1 ? `<p class="all-note hidden" id="${kind.toLowerCase()}AllNote-${r}"></p>` : '';
+
       html += `<div class="card">
         <div class="round-head"><span class="dot" style="background:${colour}"></span>Round ${r + 1}</div>
         ${timingBlock}
-        ${continueWork}
-        <div id="workEntry-${r}">
-          <label>Work playlist link</label>
-          <input class="input" id="workLink-${r}" placeholder="YouTube playlist or video link…">
-          <button type="button" class="browse-btn" data-target="workLink-${r}">＋ Browse library</button>
-          <button type="button" class="save-btn" data-savetarget="workLink-${r}">☆ Save to library</button>
+        ${allNote('Work')}
+        <div id="workSection-${r}">
+          ${continueWork}
+          <label class="check"><input type="checkbox" class="nothing" id="workNothing-${r}" data-r="${r}" data-kind="Work"> Play nothing during this work time</label>
+          <div id="workEntry-${r}">
+            <label>Work playlist link</label>
+            <input class="input" id="workLink-${r}" placeholder="YouTube playlist or video link…">
+            <button type="button" class="browse-btn" id="browseWork-${r}" data-target="workLink-${r}">＋ Browse library</button>
+            <button type="button" class="save-btn" id="saveWork-${r}" data-savetarget="workLink-${r}">☆ Save to library</button>
+          </div>
+          ${allRounds('Work')}
         </div>
-        ${continueBreak}
-        <label class="check"><input type="checkbox" class="nothing" id="breakNothing-${r}" data-r="${r}"> Play nothing during this break</label>
-        <div id="breakEntry-${r}">
-          <label>Break playlist link</label>
-          <input class="input" id="breakLink-${r}" placeholder="YouTube playlist or video link…">
-          <button type="button" class="browse-btn" id="browseBreak-${r}" data-target="breakLink-${r}">＋ Browse library</button>
-          <button type="button" class="save-btn" id="saveBreak-${r}" data-savetarget="breakLink-${r}">☆ Save to library</button>
+        <div class="break-divider"></div>
+        ${allNote('Break')}
+        <div id="breakSection-${r}">
+          ${continueBreak}
+          <label class="check"><input type="checkbox" class="nothing" id="breakNothing-${r}" data-r="${r}" data-kind="Break"> Play nothing during this break</label>
+          <div id="breakEntry-${r}">
+            <label>Break playlist link</label>
+            <input class="input" id="breakLink-${r}" placeholder="YouTube playlist or video link…">
+            <button type="button" class="browse-btn" id="browseBreak-${r}" data-target="breakLink-${r}">＋ Browse library</button>
+            <button type="button" class="save-btn" id="saveBreak-${r}" data-savetarget="breakLink-${r}">☆ Save to library</button>
+          </div>
+          ${allRounds('Break')}
         </div>
       </div>`;
     }
     document.getElementById('step2Body').innerHTML = html;
     document.getElementById('step2Error').textContent = '';
+    syncAllRounds();
+  }
+
+  // Keep the "all rounds" options in step with round 1, and hide the later rounds'
+  // work/break pickers while an "all rounds" option is on.
+  function syncAllRounds() {
+    ['Work', 'Break'].forEach(kind => {
+      const box = document.getElementById('all' + kind);
+      if (!box) return;   // only one round
+      const quiet = document.getElementById(kind.toLowerCase() + 'Nothing-0').checked;
+      const word = kind.toLowerCase();
+      document.getElementById('all' + kind + 'Text').textContent = quiet
+        ? `Play nothing during ${word === 'work' ? 'work' : 'breaks'} in every round`
+        : `Keep this ${word} video going for every round`;
+      for (let r = 1; r < state.numRounds; r++) {
+        document.getElementById(word + 'Section-' + r).classList.toggle('hidden', box.checked);
+        const note = document.getElementById(word + 'AllNote-' + r);
+        note.classList.toggle('hidden', !box.checked);
+        note.textContent = quiet
+          ? `${kind}: nothing playing (same as round 1)`
+          : `${kind}: carries on with round 1’s video`;
+      }
+    });
   }
 
   // Show the custom-minutes box when "Custom…" is chosen; react to the "nothing" checkbox.
@@ -733,6 +812,11 @@
       const entry = document.getElementById('workEntry-' + r);
       if (entry) entry.classList.toggle('hidden', e.target.checked);   // no link needed when continuing
     }
+    if (e.target.classList.contains('continue-work')) {
+      // "Continue work" and "Play nothing" can't both be on.
+      const nothing = document.getElementById('workNothing-' + e.target.dataset.r);
+      if (nothing) { if (e.target.checked) nothing.checked = false; nothing.disabled = e.target.checked; }
+    }
     if (e.target.classList.contains('continue-break')) {
       const r = e.target.dataset.r;
       const entry = document.getElementById('breakEntry-' + r);
@@ -742,28 +826,30 @@
       if (nothing) { if (e.target.checked) nothing.checked = false; nothing.disabled = e.target.checked; }
     }
     if (e.target.classList.contains('nothing')) {
-      const r = e.target.dataset.r;
-      const link = document.getElementById('breakLink-' + r);
+      // Works the same for work and break: kind is "Work" or "Break".
+      const r = e.target.dataset.r, kind = e.target.dataset.kind, word = kind.toLowerCase();
+      const link = document.getElementById(word + 'Link-' + r);
       link.disabled = e.target.checked;
       if (e.target.checked) link.value = '';
-      // Also grey out that round's break "Browse library" button.
-      const browseBreak = document.getElementById('browseBreak-' + r);
-      if (browseBreak) browseBreak.disabled = e.target.checked;
-      const saveBreak = document.getElementById('saveBreak-' + r);
-      if (saveBreak) saveBreak.disabled = e.target.checked;
-      // "Play nothing" and "Continue break" can't both be on.
-      const cont = document.getElementById('continueBreak-' + r);
+      // Also grey out that round's "Browse library" and "Save" buttons.
+      const browse = document.getElementById('browse' + kind + '-' + r);
+      if (browse) browse.disabled = e.target.checked;
+      const save = document.getElementById('save' + kind + '-' + r);
+      if (save) save.disabled = e.target.checked;
+      // "Play nothing" and "Continue" can't both be on.
+      const cont = document.getElementById('continue' + kind + '-' + r);
       if (cont) { if (e.target.checked) cont.checked = false; cont.disabled = e.target.checked;
-                  const entry = document.getElementById('breakEntry-' + r);
+                  const entry = document.getElementById(word + 'Entry-' + r);
                   if (entry && !e.target.checked) entry.classList.remove('hidden'); }
-      // If this round has its own break-duration picker, switch "match" off (no video to match).
-      const sel = document.getElementById('breakDur-' + r + '-sel');
+      // If this round has its own duration picker, switch "match" off (no video to match).
+      const sel = document.getElementById(word + 'Dur-' + r + '-sel');
       if (sel) {
         const matchOpt = sel.querySelector('option[value="match"]');
         if (matchOpt) matchOpt.disabled = e.target.checked;
-        if (e.target.checked && sel.value === 'match') sel.value = '300';
+        if (e.target.checked && sel.value === 'match') sel.value = word === 'work' ? '1500' : '300';
       }
     }
+    if (e.target.classList.contains('nothing') || e.target.classList.contains('all-opt')) syncAllRounds();
   });
 
   // =====================================================================
@@ -773,7 +859,7 @@
   // parses. bestFor 'both' means it shows whether you filter for work or for break.
   const LIBRARY = [
     { title: "60's 70's RnB Soul Groove – Barry White, Marvin Gaye, Chaka Khan, Luther Vandross, Stevie Wonder",
-      link: "https://youtu.be/4Ci3QLilOrw", category: "Music", bestFor: "both", length: "live", tags: ["soul", "has words", "live"] },
+      link: "https://youtu.be/4Ci3QLilOrw", category: "Music", bestFor: "both", length: "live", tags: ["soul", "upbeat", "has words", "live"] },
     { title: "Not Getting Up. – Vintage Noir Jazz for Quiet Mornings",
       link: "https://youtu.be/E3wkJk6LzUE", category: "Music", bestFor: "work", length: "3 hr 2 min", tags: ["jazz", "calm", "no words"] },
     { title: "Lower Your Cortisol Sound Bath | Crystal Singing Bowls for Relaxation",
@@ -783,25 +869,19 @@
     { title: "Deep Focus Background Music",
       link: "https://youtu.be/n7BhvbJcfoo", category: "Music", bestFor: "work", length: "live", tags: ["lo-fi", "r&b", "no words", "live"] },
     // --- 13 music / ambient videos added this session (approved in the previous session). ---
-    // The 9 with length: "" simply show a dash in the Length column until real lengths are added.
+    // Videos with length: "" simply show a dash in the Length column until real lengths are added.
     { title: "80s Timeless Hits Playlist – Iconic Songs That Defined the Decade",
       link: "https://youtu.be/CVM1bGiylio", category: "Music", bestFor: "both", length: "", tags: ["80s", "upbeat", "has words"] },
-    { title: "Peaceful Morning with Snoopy – Positive Jazz to Refresh Your Mind",
-      link: "https://youtu.be/8axRICKfgw8", category: "Music", bestFor: "work", length: "", tags: ["jazz", "calm", "no words"] },
     { title: "Deep Focus Flow High Concentration – 90s Hip-Hop + Isochronic Tones",
       link: "https://youtu.be/0Sbn1nDIHOw", category: "Music", bestFor: "work", length: "", tags: ["hip-hop", "focus", "no words"] },
     { title: "Hyper Focus Mode – Concentration Music / Deep Flow 2026",
       link: "https://youtu.be/eo1gKGt6h9M", category: "Music", bestFor: "work", length: "", tags: ["focus", "ambient", "no words"] },
     { title: "ADHD Intense Relief – Organic House + Isochronic Tones",
-      link: "https://youtu.be/QM1VLD16tDU", category: "Music", bestFor: "work", length: "live", tags: ["house", "focus", "no words", "live"] },
+      link: "https://youtu.be/QM1VLD16tDU", category: "Music", bestFor: "work", length: "live", tags: ["house", "upbeat", "focus", "no words", "live"] },
     { title: "100% Focus Mode – 40Hz Gamma Waves Deep Work",
       link: "https://youtu.be/_xbCrx5YGks", category: "Music", bestFor: "work", length: "3 hr", tags: ["gamma waves", "focus", "no words"] },
     { title: "Stop Procrastinating – Restore Focus & Start Working",
       link: "https://youtu.be/1MGhGrKnGAk", category: "Music", bestFor: "work", length: "2 hr", tags: ["binaural", "focus", "no words"] },
-    { title: "Mozart Effect for Lasting Focus – Classical Music for Deep Work",
-      link: "https://youtu.be/bf3XNXT6QVk", category: "Music", bestFor: "work", length: "", tags: ["classical", "focus", "no words"] },
-    { title: "30 Most Famous Beautiful Classical Music Melodies – Mozart, Beethoven, Chopin",
-      link: "https://youtu.be/HISqxCJpRB4", category: "Music", bestFor: "work", length: "3 hr 26 min", tags: ["classical", "calm", "no words"] },
     { title: "Forest Ambience – Birds Singing & Stream Sounds (ASMR)",
       link: "https://youtu.be/UysZVv2_PEw", category: "Music", bestFor: "both", length: "", tags: ["nature", "ambience", "no words"] },
     { title: "Tibetan Singing Bowl Healing – Release Stress, Anxiety & Emotional Pain",
@@ -859,9 +939,16 @@
 
   let savedVideos = loadSavedVideos();
 
+  // Built-in videos that "Check videos" found broken and you chose to remove.
+  // Built-in videos live in the code, so instead of deleting them we hide them
+  // (in this browser) until they're taken out of the code for good.
+  const HIDDEN_KEY = 'perfectPomodoro.hiddenBuiltIns';
+  let hiddenBuiltIns = [];
+  try { hiddenBuiltIns = JSON.parse(localStorage.getItem(HIDDEN_KEY)) || []; } catch (e) {}
+
   // The picker shows the built-in library and your saved videos together.
   function allLibraryItems() {
-    return LIBRARY.concat(savedVideos);
+    return LIBRARY.filter(v => !hiddenBuiltIns.includes(v.link)).concat(savedVideos);
   }
 
   // Turn a pasted link into a clean, single-video library link.
@@ -901,17 +988,26 @@
       cats.map(c => `<option value="${c}">${c}</option>`).join('');
   }
 
+  // "live" means a 24/7 YouTube live stream: it never ends, so there's no length.
+  // Show it in plain words instead.
+  const NONSTOP_LABEL = '<span title="A 24/7 live stream — it plays forever, so it has no set length">nonstop</span>';
+  const showTag = t => t === 'live' ? 'nonstop' : t;
+
   // Draw the rows that match the current search + dropdown filters.
   function renderLibrary() {
     const q = document.getElementById('libSearch').value.trim().toLowerCase();
     const cat = document.getElementById('libCategory').value;
     const best = document.getElementById('libBestFor').value;
+    // Quick-filter chips that are switched on ("no words", "upbeat") — a video needs every one.
+    const chipTags = [...document.querySelectorAll('.lib-chip[aria-pressed="true"]')].map(c => c.dataset.tag);
 
     const matches = allLibraryItems().filter(item => {
       if (cat !== 'all' && item.category !== cat) return false;
       if (best !== 'all' && item.bestFor !== best && item.bestFor !== 'both') return false;
+      const itemTags = (item.tags || []).map(t => t.toLowerCase());
+      if (!chipTags.every(t => itemTags.includes(t))) return false;
       if (q) {
-        const haystack = (item.title + ' ' + item.category + ' ' + item.tags.join(' ')).toLowerCase();
+        const haystack = (item.title + ' ' + item.category + ' ' + item.tags.map(showTag).join(' ')).toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       return true;
@@ -926,14 +1022,15 @@
     // One table row per video: Title | For | Length | Tags | (Use + remove).
     const rows = matches.map(item => {
       const forLabel = item.bestFor === 'both' ? 'both' : item.bestFor;
-      const lengthLabel = item.length ? item.length : '—';
-      const tagsLabel = (item.tags && item.tags.length) ? item.tags.join(', ') : '—';
+      const lengthLabel = item.length === 'live' ? NONSTOP_LABEL : (item.length ? item.length : '—');
+      const tagsLabel = (item.tags && item.tags.length) ? item.tags.map(showTag).join(', ') : '—';
       // Only YOUR saved videos get a remove ✕ — the built-in ones can't be deleted.
       const removeBtn = item.saved
         ? `<button type="button" class="lib-remove" data-id="${item.id}" aria-label="Remove from your saved videos" title="Remove from your saved videos">✕</button>`
         : '';
+      const badge = brokenLinks.has(item.link) ? `<br><span class="lt-bad">Won’t play here</span>` : '';
       return `<tr>
-        <td class="lt-title">${item.title}</td>
+        <td class="lt-title">${item.title}${badge}</td>
         <td class="lt-for">${forLabel}</td>
         <td class="lt-len">${lengthLabel}</td>
         <td class="lt-tags">${tagsLabel}</td>
@@ -1040,6 +1137,123 @@
     renderLibrary();
   }
 
+  // ---- "Check videos" ----------------------------------------------------------
+  // Some YouTube videos refuse to play anywhere except youtube.com (the owner turned
+  // off embedding, it's age-restricted, or it was taken down). The only reliable way
+  // to know is to try: we load each video in a tiny hidden player and see whether
+  // YouTube reports an error. Only single videos can be checked, not playlists.
+  let brokenLinks = new Set();   // links found broken in the last check
+  let checking = false;
+
+  function videoIdFromLink(link) {
+    const m = link.match(/youtu\.be\/([A-Za-z0-9_-]{11})/);
+    return m ? m[1] : null;
+  }
+
+  // Resolves to 'ok', 'broken', or 'unknown' (couldn't tell — never removed).
+  function testVideo(videoId) {
+    return new Promise(resolve => {
+      const holder = document.createElement('div');
+      holder.style.cssText = 'position:fixed;left:-9999px;top:0;width:200px;height:120px;';
+      const slot = document.createElement('div');
+      holder.appendChild(slot);
+      document.body.appendChild(holder);
+      let done = false, p = null;
+      const finish = (result) => {
+        if (done) return;
+        done = true;
+        try { p && p.destroy(); } catch (e) {}
+        holder.remove();
+        resolve(result);
+      };
+      const giveUp = setTimeout(() => finish('unknown'), 15000);
+      p = new YT.Player(slot, {
+        width: 200, height: 120, videoId,
+        playerVars: { autoplay: 1, mute: 1, playsinline: 1 },
+        events: {
+          // Loaded fine: nudge it to play, and if no error shows up shortly, it's OK.
+          onReady: (e) => {
+            try { e.target.mute(); e.target.playVideo(); } catch (err) {}
+            setTimeout(() => { clearTimeout(giveUp); finish('ok'); }, 4000);
+          },
+          onStateChange: (e) => { if (e.data === 1) { clearTimeout(giveUp); finish('ok'); } },
+          // 100 = removed/private, 101/150 = owner blocks other sites, 153 = setup issue.
+          onError: (e) => { clearTimeout(giveUp); finish(e.data === 153 ? 'unknown' : 'broken'); }
+        }
+      });
+    });
+  }
+
+  function setCheckMessage(html) {
+    const box = document.getElementById('libCheck');
+    box.innerHTML = html;
+    box.classList.toggle('active', !!html);
+  }
+
+  async function runLibraryCheck() {
+    if (checking) return;
+    if (!apiReady) { setCheckMessage('The YouTube player is still loading — try again in a moment.'); return; }
+    checking = true;
+    const btn = document.getElementById('libCheckBtn');
+    btn.disabled = true;
+    brokenLinks = new Set();
+
+    const items = allLibraryItems().filter(v => videoIdFromLink(v.link));
+    const skipped = allLibraryItems().length - items.length;   // playlists
+    let unknown = 0, checked = 0;
+
+    // A few at a time, so we don't open dozens of players at once.
+    const queue = items.slice();
+    async function worker() {
+      while (queue.length) {
+        const item = queue.shift();
+        const result = await testVideo(videoIdFromLink(item.link));
+        if (result === 'broken') brokenLinks.add(item.link);
+        if (result === 'unknown') unknown++;
+        checked++;
+        setCheckMessage(`Checking videos… ${checked} of ${items.length}`);
+      }
+    }
+    setCheckMessage(`Checking videos… 0 of ${items.length}`);
+    await Promise.all([worker(), worker(), worker(), worker()]);
+
+    const notes = [];
+    if (unknown) notes.push(`${unknown} couldn’t be checked (left alone).`);
+    if (skipped) notes.push(`${skipped} playlist${skipped === 1 ? '' : 's'} skipped — only single videos can be checked.`);
+    const extra = notes.length ? '<br>' + notes.join(' ') : '';
+
+    if (brokenLinks.size === 0) {
+      setCheckMessage(`✓ All ${items.length - unknown} checked videos play fine.${extra}`);
+    } else {
+      const n = brokenLinks.size;
+      setCheckMessage(`${n} video${n === 1 ? '' : 's'} won’t play inside the app (YouTube only lets ${n === 1 ? 'it' : 'them'} play on youtube.com). ${n === 1 ? 'It’s' : 'They’re'} marked below.${extra}
+        <br><button type="button" class="lib-use" id="libRemoveBroken">Remove ${n === 1 ? 'it' : 'all ' + n}</button>`);
+    }
+    renderLibrary();
+    btn.disabled = false;
+    checking = false;
+  }
+
+  function removeBrokenVideos() {
+    const n = brokenLinks.size;
+    if (!n) return;
+    savedVideos = savedVideos.filter(v => !brokenLinks.has(v.link));
+    persistSavedVideos();
+    LIBRARY.forEach(v => {
+      if (brokenLinks.has(v.link) && !hiddenBuiltIns.includes(v.link)) hiddenBuiltIns.push(v.link);
+    });
+    try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(hiddenBuiltIns)); } catch (e) {}
+    brokenLinks = new Set();
+    setCheckMessage(`Removed ${n} video${n === 1 ? '' : 's'}.`);
+    fillCategoryOptions();
+    renderLibrary();
+  }
+
+  document.getElementById('libCheckBtn').addEventListener('click', runLibraryCheck);
+  document.getElementById('libCheck').addEventListener('click', (e) => {
+    if (e.target.id === 'libRemoveBroken') removeBrokenVideos();
+  });
+
   // Open the picker from any "Browse library" button on Step 2.
   document.getElementById('step2Body').addEventListener('click', (e) => {
     const browse = e.target.closest('.browse-btn');
@@ -1059,6 +1273,10 @@
   document.getElementById('libSearch').addEventListener('input', renderLibrary);
   document.getElementById('libCategory').addEventListener('change', renderLibrary);
   document.getElementById('libBestFor').addEventListener('change', renderLibrary);
+  document.querySelectorAll('.lib-chip').forEach(chip => chip.addEventListener('click', () => {
+    chip.setAttribute('aria-pressed', chip.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+    renderLibrary();
+  }));
   document.getElementById('libClose').addEventListener('click', closePicker);
   // Tapping the dark area outside the sheet also closes the picker.
   document.getElementById('libraryPanel').addEventListener('click', (e) => {
@@ -1120,20 +1338,29 @@
       state.sharedWork = w; state.sharedBreak = b;
     }
 
+    // "All rounds" options on round 1: later rounds copy round 1's choice.
+    const allWork = document.getElementById('allWork'), allBreak = document.getElementById('allBreak');
+    const workAll = !!(allWork && allWork.checked), breakAll = !!(allBreak && allBreak.checked);
+    const workQuiet0 = document.getElementById('workNothing-0').checked;
+    const breakQuiet0 = document.getElementById('breakNothing-0').checked;
+
     for (let r = 0; r < state.numRounds; r++) {
-      // Work: either continue the previous round's work video, or read this round's link.
+      const followWork = workAll && r >= 1, followBreak = breakAll && r >= 1;
+
+      // Work: continue the previous round's video, play nothing, or read this round's link.
       const cw = document.getElementById('continueWork-' + r);
-      const workContinue = !!(cw && cw.checked);
+      const workNothing = followWork ? workQuiet0 : document.getElementById('workNothing-' + r).checked;
+      const workContinue = followWork ? !workQuiet0 : !!(cw && cw.checked);
       let work = null;
-      if (!workContinue) {
+      if (!workContinue && !workNothing) {
         work = parseYouTube(document.getElementById('workLink-' + r).value);
-        if (!work) { err.textContent = `Round ${r + 1}: add a YouTube link for the work part.`; return false; }
+        if (!work) { err.textContent = `Round ${r + 1}: add a work link, or tick "Play nothing".`; return false; }
       }
 
       // Break: continue, play nothing, or read this round's link.
       const cb = document.getElementById('continueBreak-' + r);
-      const breakContinue = !!(cb && cb.checked);
-      const nothing = document.getElementById('breakNothing-' + r).checked;
+      const nothing = followBreak ? breakQuiet0 : document.getElementById('breakNothing-' + r).checked;
+      const breakContinue = followBreak ? !breakQuiet0 : !!(cb && cb.checked);
       let brk = null;
       if (!breakContinue && !nothing) {
         brk = parseYouTube(document.getElementById('breakLink-' + r).value);
@@ -1152,7 +1379,11 @@
         if (workDur === null || breakDur === null) { err.textContent = `Round ${r + 1}: enter a valid custom length.`; return false; }
       }
 
-      rounds.push({ workContent: work, breakContent: brk, breakNothing: nothing,
+      if (workNothing && workDur === 'match') {
+        err.textContent = `Round ${r + 1}: "Match video length" needs a work video — pick a length instead.`; return false;
+      }
+
+      rounds.push({ workContent: work, breakContent: brk, breakNothing: nothing, workNothing,
                     workContinue, breakContinue, workDur, breakDur });
     }
     state.rounds = rounds;
@@ -1309,10 +1540,11 @@
     for (let r = 0; r < state.numRounds; r++) {
       const rd = state.rounds[r];
 
-      // WORK — continue the previous round's work video, or use this round's own.
-      const workContent = rd.workContinue ? lastWork : rd.workContent;
+      // WORK — continue the previous round's work video, play nothing, or use this round's own.
+      const workContent = rd.workNothing ? null : (rd.workContinue ? lastWork : rd.workContent);
+      const workNothing = (workContent === null);   // continuing a quiet round stays quiet
       phases.push({ kind: 'work', round: r, dur: rd.workDur, content: workContent,
-                    nothing: false, continueFromPrev: !!rd.workContinue });
+                    nothing: workNothing, continueFromPrev: !!rd.workContinue && !workNothing });
       lastWork = workContent;
 
       // BREAK — continue, play nothing, or use this round's own video.
@@ -1333,7 +1565,7 @@
   }
 
   function phaseLabel(p) {
-    if (p.kind === 'work') return 'focus time';
+    if (p.kind === 'work') return p.nothing ? 'quiet focus time' : 'focus time';
     return p.nothing ? 'quiet break' : 'break';
   }
 
@@ -1343,9 +1575,12 @@
       `Round ${p.round + 1} of ${state.numRounds} · ${p.kind === 'work' ? 'Work' : 'Break'}`;
 
     const wrap = document.getElementById('player-wrap'), rest = document.getElementById('restPanel');
-    if (p.kind === 'break' && p.nothing) {
+    if (p.nothing) {
       stopPlayer(); wrap.classList.add('hidden'); rest.classList.add('active');
-      nowPlaying = null;                // quiet break: nothing to save
+      rest.textContent = p.kind === 'work'
+        ? 'Focus. Nothing playing — your break starts on its own.'
+        : 'Rest. The next round starts on its own.';
+      nowPlaying = null;                // quiet phase: nothing to save
     } else {
       wrap.classList.remove('hidden'); rest.classList.remove('active');
       loadContent(p.content, p.continueFromPrev);
