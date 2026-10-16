@@ -211,6 +211,21 @@
   }
   #player-wrap.hidden { display: none; }
   #player { width: 100%; height: 100%; }
+  /* ---------- "Video won't play" note (shows under the video when YouTube refuses it) ---------- */
+  .video-help {
+    display: none; align-items: flex-start; gap: 10px;
+    width: 100%; max-width: 440px; margin: -10px 0 22px;
+    padding: 10px 12px; border-radius: 10px; text-align: left;
+    border: 1px solid var(--surface-line); background: rgba(255,255,255,0.05);
+    color: var(--muted); font-size: 14px; line-height: 1.4;
+  }
+  .video-help.active { display: flex; }
+  .video-help span { flex: 1; }
+  .video-help button {
+    background: none; border: 0; color: var(--muted); font-size: 16px; line-height: 1;
+    cursor: pointer; padding: 2px 4px; font-family: inherit;
+  }
+  .video-help button:hover, .video-help button:focus-visible { color: var(--text); }
   .rest-panel {
     width: 100%; max-width: 440px; aspect-ratio: 16/9;
     border-radius: var(--radius); border: 1px solid var(--surface-line);
@@ -446,6 +461,11 @@
       <div class="mode-pill" id="modePill">Round 1 of 4 · Work</div>
       <div class="clock" id="clock">25:00</div>
       <div id="player-wrap"><div id="player"></div></div>
+      <!-- Shown only when YouTube refuses to play a video (most often an ad blocker) -->
+      <div class="video-help" id="videoHelp" role="status">
+        <span>If the video isn't playing, you may need to turn off your ad blocker for this site.</span>
+        <button type="button" id="videoHelpClose" aria-label="Close this note">✕</button>
+      </div>
       <div class="rest-panel" id="restPanel">Rest. The next round starts on its own.</div>
 
       <!-- Pause/Resume and one-tap Save-to-library, available while a session runs -->
@@ -1420,12 +1440,21 @@
               try { player.seekTo(target, true); } catch (err) {}
             }
           },
+          // YouTube refused to play this video (ad blockers are the usual cause).
+          onError: () => showVideoHelp(true),
         },
       });
     });
   }
 
+  // The "video won't play" note under the player.
+  function showVideoHelp(show) {
+    document.getElementById('videoHelp').classList.toggle('active', show);
+  }
+  document.getElementById('videoHelpClose').addEventListener('click', () => showVideoHelp(false));
+
   function loadContent(content, resume) {
+    showVideoHelp(false);         // a new video gets a fresh start; the note returns only if it fails too
     if (!player || !content) return;
     videoEnded = false;
     pendingSeek = 0;              // clear any leftover jump target from a previous load
@@ -1441,7 +1470,7 @@
       player.loadVideoById({ videoId: content.id, startSeconds });
     }
   }
-  function stopPlayer() { if (player && playerReady) { try { player.stopVideo(); } catch (e) {} } }
+  function stopPlayer() { showVideoHelp(false); if (player && playerReady) { try { player.stopVideo(); } catch (e) {} } }
 
   // =====================================================================
   //  BEEPS
